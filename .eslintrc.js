@@ -28,6 +28,7 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 'off',
     '@typescript-eslint/ban-ts-comment': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
+    "@typescript-eslint/no-namespace": "off",
     "@typescript-eslint/restrict-template-expressions": [
       "warn",
       {
