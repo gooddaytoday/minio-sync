@@ -7,6 +7,10 @@ const SyncFolder = DefaultSyncFolder || path.join(process.env.HOME, "/store/");
 Sync(
     SyncFolder,
     {
+        Permissions: {
+            Read: true,
+            Write: true,
+        },
         MinIO: {
             Bucket: "test-store",
             EndPoint: "127.0.0.1",

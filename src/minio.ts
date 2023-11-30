@@ -55,6 +55,10 @@ export default class MinIO {
         return this.bucket;
     }
 
+    public get Objects(): Map<string, TObjItem> {
+        return this.objects;
+    }
+
     public async UploadFile(
         objectName: string,
         filePath: string
@@ -63,9 +67,7 @@ export default class MinIO {
             const res = await this.PutObject(objectName, filePath);
             if (res)
                 Log(
-                    `File uploaded successfully to ${this.bucket}/${objectName}`,
-                    res.etag,
-                    res.versionId
+                    `File uploaded successfully to ${this.bucket}/${objectName}`
                 );
         } catch (error) {
             console.error("Error uploading file:", error);
@@ -73,7 +75,7 @@ export default class MinIO {
         }
     }
 
-    public async PutObject(
+    private async PutObject(
         objectName: string,
         filePath: string
     ): Promise<minio.UploadedObjectInfo | undefined> {
@@ -113,9 +115,7 @@ export default class MinIO {
             const res = await this.PutObject(objectName, filePath);
             if (res)
                 Log(
-                    `File updated successfully in ${this.bucket}/${objectName}`,
-                    res.etag,
-                    res.versionId
+                    `File updated successfully in ${this.bucket}/${objectName}`
                 );
         } catch (error) {
             Log("Error updating file:", error);
@@ -137,6 +137,20 @@ export default class MinIO {
         }
     }
 
+    public async DownloadFile(
+        objectName: string,
+        filePath: string
+    ): Promise<void> {
+        try {
+            await this.client.fGetObject(this.bucket, objectName, filePath);
+            Log(
+                `File downloaded successfully from ${this.bucket}/${objectName}`
+            );
+        } catch (error) {
+            console.error("Error downloading file:", error);
+            throw error;
+        }
+    }
     public async RemoveBucket(): Promise<void> {
         try {
             // remove all objects

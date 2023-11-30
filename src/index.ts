@@ -1,8 +1,10 @@
+import { IPermissions, Manager } from "./manager";
 import MinIO, { IMinIOConfig } from "./minio";
 import { Log } from "./utils";
 import { Watcher } from "./watcher";
 
 interface ISyncConfig {
+    Permissions: IPermissions;
     MinIO: IMinIOConfig;
 }
 
@@ -16,6 +18,10 @@ export default async function Sync(
         console.error("Error while initializing minio", e);
         throw e;
     });
-    const watcher = new Watcher(rootPath, minIO);
+    const manager = new Manager(rootPath, minIO, {
+        Read: config.Permissions.Read,
+        Write: config.Permissions.Write,
+    });
+    const watcher = new Watcher(rootPath, manager);
     return watcher;
 }

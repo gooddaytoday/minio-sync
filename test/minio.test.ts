@@ -21,7 +21,7 @@ describe("MinIO PutObject", () => {
         const filePath = __filename;
         const objectName = v4();
 
-        await minioInstance.PutObject(objectName, filePath);
+        await minioInstance["PutObject"](objectName, filePath);
         const objectExists = await minioInstance.Client.statObject(
             minioConf.Bucket,
             objectName
@@ -35,8 +35,8 @@ describe("MinIO PutObject", () => {
         const objectName = v4();
         const filePath = __filename;
 
-        await minioInstance.PutObject(objectName, filePath);
-        await minioInstance.PutObject(objectName, otherFilePath);
+        await minioInstance["PutObject"](objectName, filePath);
+        await minioInstance["PutObject"](objectName, otherFilePath);
 
         const objectExists = await minioInstance.Client.statObject(
             minioConf.Bucket,
@@ -49,8 +49,8 @@ describe("MinIO PutObject", () => {
         const objectName = v4();
         const filePath = __filename;
 
-        await minioInstance.PutObject(objectName, filePath);
-        const result = await minioInstance.PutObject(objectName, filePath);
+        await minioInstance["PutObject"](objectName, filePath);
+        const result = await minioInstance["PutObject"](objectName, filePath);
 
         expect(result).toBeUndefined();
     });
@@ -58,7 +58,7 @@ describe("MinIO PutObject", () => {
     it("should throw an error when object name is invalid or empty", async () => {
         const objectName = "";
         await expect(
-            minioInstance.PutObject(objectName, __filename)
+            minioInstance["PutObject"](objectName, __filename)
         ).rejects.toThrow();
     });
 
@@ -67,7 +67,7 @@ describe("MinIO PutObject", () => {
         const filePath = "";
 
         await expect(
-            minioInstance.PutObject(objectName, filePath)
+            minioInstance["PutObject"](objectName, filePath)
         ).rejects.toThrow();
     });
 });
@@ -92,7 +92,7 @@ describe("MinIO UpdateFile", () => {
     it("should update the file when it already exists", async () => {
         const objectName = v4();
         const filePath = __filename;
-        const putObjectSpy = jest.spyOn(minioInstance, "PutObject");
+        const putObjectSpy = jest.spyOn(minioInstance, <any>"PutObject");
 
         await minioInstance.UploadFile(objectName, filePath);
         await minioInstance.UpdateFile(objectName, otherFilePath);

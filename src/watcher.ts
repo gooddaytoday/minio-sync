@@ -1,17 +1,16 @@
 import * as chokidar from "chokidar";
-import MinIO from "./minio";
+import { Manager } from "./manager";
 import { Log } from "./utils";
 
 export class Watcher {
     private watcher: chokidar.FSWatcher;
     private rootPath: string;
-    private minio: MinIO;
-    private sync: boolean = true;
+    private manager: Manager;
     private logChanges: boolean = false;
 
-    constructor(rootPath: string, minio: MinIO) {
+    constructor(rootPath: string, manager: Manager) {
         this.rootPath = rootPath;
-        this.minio = minio;
+        this.manager = manager;
         this.watcher = chokidar.watch(rootPath, {
             ignored: ["node_modules/**"],
             awaitWriteFinish: {
@@ -31,18 +30,18 @@ export class Watcher {
     }
 
     private OnAdd(fullpath: string): void {
-        this.Log(fullpath, "File added");
-        if (this.sync) this.minio.UploadFile(this.Path(fullpath), fullpath);
+        this.Log(fullpath, "  > File added");
+        this.manager.UploadFile(this.RelPath(fullpath), fullpath);
     }
 
     private OnChange(fullpath: string): void {
-        this.Log(fullpath, "File changed");
-        if (this.sync) this.minio.UpdateFile(this.Path(fullpath), fullpath);
+        this.Log(fullpath, "  > File changed");
+        this.manager.UpdateFile(this.RelPath(fullpath), fullpath);
     }
 
     private OnUnlink(fullpath: string): void {
-        this.Log(fullpath, "File removed");
-        if (this.sync) this.minio.DeleteFile(this.Path(fullpath));
+        this.Log(fullpath, "  > File removed");
+        this.manager.DeleteFile(this.RelPath(fullpath));
     }
 
     private OnAddDir(fullpath: string): void {
@@ -60,13 +59,14 @@ export class Watcher {
     private OnReady(): void {
         Log("\nInitial scan complete. Ready for changes...");
         this.logChanges = process.env.NODE_ENV !== "production";
+        this.manager.Sync();
     }
 
     private Log(fullpath: string, msg: string): void {
-        if (this.logChanges) Log(msg.padEnd(20), this.Path(fullpath));
+        if (this.logChanges) Log(msg.padEnd(20), this.RelPath(fullpath));
     }
 
-    private Path(fullpath: string): string {
+    private RelPath(fullpath: string): string {
         return fullpath.replace(this.rootPath, "");
     }
 
