@@ -1,6 +1,6 @@
 import * as fs from "fs-extra";
 import * as minio from "minio";
-import { FileMd5, Log } from "./utils";
+import { CalcEtag, Log } from "./utils";
 
 export interface IMinIOConfig {
     Bucket: string;
@@ -13,7 +13,7 @@ export interface IMinIOConfig {
 
 type TObjItem = {
     size: number;
-    etag: string;
+    etag: string | null;
 };
 
 export default class MinIO {
@@ -77,22 +77,27 @@ export default class MinIO {
         objectName: string,
         filePath: string
     ): Promise<minio.UploadedObjectInfo | undefined> {
-        const [stat, md5] = await Promise.all([
+        const [stat, etag] = await Promise.all([
             fs.stat(filePath),
-            FileMd5(filePath),
+            CalcEtag(filePath),
         ]);
 
         if (this.objects.has(objectName)) {
             const obj = this.objects.get(objectName)!;
-            if (obj.size === stat.size && obj.etag === md5) {
-                Log(`File ${objectName} already exists in ${this.bucket}`);
+            if (
+                (obj.size == 0 && stat.size == 0) ||
+                (obj.size === stat.size && obj.etag === etag)
+            ) {
+                Log(
+                    `       File ${objectName} already exists in ${this.bucket}`
+                );
                 return;
             }
         }
 
         this.objects.set(objectName, {
             size: stat.size,
-            etag: md5,
+            etag: etag,
         });
         return this.client.fPutObject(this.bucket, objectName, filePath, {});
     }
