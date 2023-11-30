@@ -13,7 +13,7 @@ export interface IMinIOConfig {
 
 type TObjItem = {
     size: number;
-    etag: string | null;
+    etag: string;
 };
 
 export default class MinIO {
