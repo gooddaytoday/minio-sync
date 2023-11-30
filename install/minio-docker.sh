@@ -1,8 +1,9 @@
 mkdir -p ${HOME}/minio/data
 sudo chmod 0777 -R ${HOME}/minio/data
-docker run \
+docker run -d \
    -p 9000:9000 \
    -p 9090:9090 \
+   --restart always \
    --user $(id -u):$(id -g) \
    --name minio1 \
    -e "MINIO_ROOT_USER=user" \
