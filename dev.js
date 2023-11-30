@@ -1,5 +1,5 @@
 const path = require("path");
-const Sync = require("./index").default;
+const Sync = require("./lib/src/index").default;
 
 const DefaultSyncFolder = ""; // Put your folder to sync here
 const SyncFolder = DefaultSyncFolder || path.join(process.env.HOME, "/store/");
