@@ -16,7 +16,7 @@ export class Watcher {
             ignored: ["node_modules/**"],
             awaitWriteFinish: {
                 pollInterval: 500,
-                stabilityThreshold: 10000,
+                stabilityThreshold: 5000,
             },
         });
 
