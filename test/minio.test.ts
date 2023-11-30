@@ -141,11 +141,15 @@ describe("MinIO GetObjects", () => {
         const config = testsconfig.GenMinIOConfig();
         const minioInstance = new MinIO(config);
 
-        await minioInstance.Init();
-        const result = await minioInstance["GetObjects"]();
+        try {
+            await minioInstance.Init();
+            const result = await minioInstance["GetObjects"]();
 
-        expect(result).toBeInstanceOf(Map);
-        expect(result.size).toBe(0);
+            expect(result).toBeInstanceOf(Map);
+            expect(result.size).toBe(0);
+        } finally {
+            await minioInstance.RemoveBucket();
+        }
     });
 
     it("should return a Map object with the names and metadata of all objects in the bucket with a specific prefix", async () => {
