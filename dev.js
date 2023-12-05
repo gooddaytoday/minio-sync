@@ -12,6 +12,7 @@ Sync(
             Write: true,
         },
         MinIO: {
+            ListenUpdates: true,
             Bucket: "test-store",
             EndPoint: "127.0.0.1",
             Port: 9000,

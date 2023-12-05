@@ -1,5 +1,6 @@
 import * as fs from "fs-extra";
 import * as minio from "minio";
+import { ObjectEvent, TObjectsListener } from "./manager";
 import { CalcEtag, Log } from "./utils";
 
 export interface IMinIOConfig {
@@ -16,10 +17,30 @@ type TObjItem = {
     etag: string;
 };
 
+interface IMinIONotificationEvent {
+    eventName: string;
+    s3: {
+        object: {
+            key: string;
+        };
+    };
+}
+
+const ToManagerObjEvent = {
+    [minio.ObjectCreatedPut]: ObjectEvent.Create,
+    [minio.ObjectCreatedCompleteMultipartUpload]: ObjectEvent.Create,
+    [minio.ObjectCreatedPost]: ObjectEvent.Create,
+    [minio.ObjectCreatedCopy]: ObjectEvent.Create,
+    [minio.ObjectRemovedDelete]: ObjectEvent.Delete,
+    [minio.ObjectRemovedDeleteMarkerCreated]: ObjectEvent.Delete,
+};
+
 export default class MinIO {
     private client: minio.Client;
     private bucket: string;
     private objects = new Map<string, TObjItem>();
+    private listener: minio.NotificationPoller;
+    private objectsListener: TObjectsListener | undefined;
 
     constructor(config: IMinIOConfig) {
         this.bucket = config.Bucket;
@@ -30,6 +51,12 @@ export default class MinIO {
             accessKey: config.AccessKey,
             secretKey: config.SecretKey,
         });
+        this.listener = this.client.listenBucketNotification(
+            this.Bucket,
+            "",
+            "",
+            [minio.ObjectCreatedAll, minio.ObjectRemovedAll]
+        );
     }
 
     public async Init(): Promise<void> {
@@ -45,6 +72,20 @@ export default class MinIO {
                 etag: obj.etag,
             });
         }
+        // Listen for new objects
+        this.listener.on("notification", (event: IMinIONotificationEvent) => {
+            console.log(event.eventName + " => " + event.s3.object.key);
+            if (this.objectsListener) {
+                const mappedEvent = ToManagerObjEvent[event.eventName];
+                this.objectsListener(mappedEvent, event.s3.object.key);
+            } else {
+                throw new Error("Not set objectsListener");
+            }
+        });
+    }
+
+    public AddObjectsListener(cb: TObjectsListener): void {
+        this.objectsListener = cb;
     }
 
     public get Client(): minio.Client {

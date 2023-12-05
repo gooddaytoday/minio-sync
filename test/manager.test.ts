@@ -12,6 +12,7 @@ describe("Manager's unit tests", () => {
     }
     function CreateStorage(): IStorage {
         return {
+            AddObjectsListener: jest.fn(),
             Objects: new Map(),
             UploadFile: emptyPromiseMock(),
             UpdateFile: emptyPromiseMock(),
@@ -96,6 +97,7 @@ describe("Manager's unit tests", () => {
     // Permissions.Read is false, Sync method doesn't download objects
     it("should not download objects when Permissions.Read is false", () => {
         const storage: IStorage = {
+            AddObjectsListener: jest.fn(),
             Objects: new Map([["objectName", { size: 0, etag: null }]]),
             UploadFile: jest.fn(),
             UpdateFile: jest.fn(),

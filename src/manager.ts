@@ -1,14 +1,22 @@
-import { exists, stat } from "fs-extra";
+import { exists, unlink } from "fs-extra";
 import queue from "p-queue";
 import * as path from "path";
-import { CalcEtag, Log } from "./utils";
+import { IsFileEqual, Log } from "./utils";
 
 type TObjItem = {
     size: number;
     etag: string | null;
 };
 
+export const enum ObjectEvent {
+    Create,
+    Delete,
+}
+
+export type TObjectsListener = (event: ObjectEvent, objectName: string) => void;
+
 export interface IStorage {
+    AddObjectsListener(cb: TObjectsListener): void;
     /** Object name => object data */
     Objects: Map<string, TObjItem>;
     UploadFile(objectName: string, filePath: string): Promise<void>;
@@ -45,6 +53,7 @@ export class Manager implements IManager {
         this.rootPath = rootPath;
         this.storage = storage;
         this.permissions = permissions;
+        this.storage.AddObjectsListener(this.OnObjectEvent.bind(this));
     }
 
     public UploadFile(objectName: string, filePath: string): void {
@@ -95,22 +104,50 @@ export class Manager implements IManager {
         });
     }
 
+    private OnObjectEvent(event: ObjectEvent, objectName: string): void {
+        const fullPath = path.join(this.rootPath, objectName);
+        switch (event) {
+            case ObjectEvent.Create:
+                this.AddToQueue(objectName, async () => {
+                    try {
+                        const obj = this.storage.Objects.get(objectName);
+                        if (!obj || !(await IsFileEqual(fullPath, obj))) {
+                            await this.storage.DownloadFile(
+                                objectName,
+                                fullPath
+                            );
+                        }
+                    } catch (e) {
+                        console.error("Error while downloading", e);
+                        throw e;
+                    }
+                });
+                break;
+            case ObjectEvent.Delete:
+                void (async () => {
+                    try {
+                        if (await exists(fullPath)) {
+                            await unlink(fullPath);
+                        }
+                    } catch (e) {
+                        console.error("Error while deleting", e);
+                        throw e;
+                    }
+                })();
+                break;
+            default:
+                throw new Error(`Unknown object event: ${event}`);
+        }
+    }
+
     private async DownloadObjects(): Promise<void> {
         const objects = this.storage.Objects;
         const downloads: Promise<void>[] = [];
         for (const [obj, objData] of objects) {
             const fullpath = path.join(this.rootPath, obj);
-            if (await exists(fullpath)) {
-                const fileStat = await stat(fullpath);
-                if (
-                    (objData.size == 0 && fileStat.size == 0) ||
-                    (objData.size == fileStat.size &&
-                        objData.etag === (await CalcEtag(fullpath)))
-                ) {
-                    continue;
-                }
+            if (!(await IsFileEqual(fullpath, objData))) {
+                downloads.push(this.storage.DownloadFile(obj, fullpath));
             }
-            downloads.push(this.storage.DownloadFile(obj, fullpath));
         }
         await Promise.all(downloads);
     }

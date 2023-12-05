@@ -1,5 +1,6 @@
 import * as crypto from "crypto";
 import * as fs from "fs";
+import { exists, stat } from "fs-extra";
 
 const DEV = process.env.NODE_ENV !== "production";
 const TEST = process.env.NODE_ENV === "test";
@@ -7,6 +8,27 @@ const TEST = process.env.NODE_ENV === "test";
 export function Log(message?: any, ...optionalParams: any[]): void {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     if (DEV && !TEST) console.log(message, ...optionalParams);
+}
+
+type TObjItem = {
+    size: number;
+    etag: string | null;
+};
+
+export async function IsFileEqual(
+    fullpath: string,
+    objData: TObjItem
+): Promise<boolean> {
+    if (await exists(fullpath)) {
+        const fileStat = await stat(fullpath);
+        return (
+            (objData.size == 0 && fileStat.size == 0) ||
+            (objData.size == fileStat.size &&
+                objData.etag === (await CalcEtag(fullpath)))
+        );
+    } else {
+        return false;
+    }
 }
 
 const chunkSize = 64 * 1024 * 1024;
