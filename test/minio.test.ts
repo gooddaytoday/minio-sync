@@ -99,9 +99,7 @@ describe("MinIO UpdateFile", () => {
 
         expect(putObjectSpy).toHaveBeenCalledWith(objectName, filePath);
         expect(logSpy).toHaveBeenCalledWith(
-            `File updated successfully in ${minioInstance.Bucket}/${objectName}`,
-            await utils.CalcEtag(otherFilePath),
-            null
+            `File updated successfully in ${minioInstance.Bucket}/${objectName}`
         );
     });
 
