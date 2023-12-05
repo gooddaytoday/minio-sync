@@ -5,6 +5,7 @@ import { CalcEtag, Log } from "./utils";
 
 export interface IMinIOConfig {
     Bucket: string;
+    ListenUpdates: boolean;
     EndPoint: string;
     Port: number;
     UseSSL: boolean;
@@ -39,7 +40,7 @@ export default class MinIO {
     private client: minio.Client;
     private bucket: string;
     private objects = new Map<string, TObjItem>();
-    private listener: minio.NotificationPoller;
+    private listener: minio.NotificationPoller | undefined;
     private objectsListener: TObjectsListener | undefined;
 
     constructor(config: IMinIOConfig) {
@@ -51,12 +52,14 @@ export default class MinIO {
             accessKey: config.AccessKey,
             secretKey: config.SecretKey,
         });
-        this.listener = this.client.listenBucketNotification(
-            this.Bucket,
-            "",
-            "",
-            [minio.ObjectCreatedAll, minio.ObjectRemovedAll]
-        );
+        if (config.ListenUpdates) {
+            this.listener = this.client.listenBucketNotification(
+                this.Bucket,
+                "",
+                "",
+                [minio.ObjectCreatedAll, minio.ObjectRemovedAll]
+            );
+        }
     }
 
     public async Init(): Promise<void> {
@@ -73,15 +76,18 @@ export default class MinIO {
             });
         }
         // Listen for new objects
-        this.listener.on("notification", (event: IMinIONotificationEvent) => {
-            console.log(event.eventName + " => " + event.s3.object.key);
-            if (this.objectsListener) {
-                const mappedEvent = ToManagerObjEvent[event.eventName];
-                this.objectsListener(mappedEvent, event.s3.object.key);
-            } else {
-                throw new Error("Not set objectsListener");
-            }
-        });
+        if (this.listener)
+            this.listener.on(
+                "notification",
+                (event: IMinIONotificationEvent) => {
+                    if (this.objectsListener) {
+                        const mappedEvent = ToManagerObjEvent[event.eventName];
+                        this.objectsListener(mappedEvent, event.s3.object.key);
+                    } else {
+                        throw new Error("Not set objectsListener");
+                    }
+                }
+            );
     }
 
     public AddObjectsListener(cb: TObjectsListener): void {

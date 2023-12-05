@@ -2,10 +2,13 @@ import * as uuid from "uuid";
 import { IMinIOConfig } from "../src/minio";
 
 export module testsconfig {
-    export function GenMinIOConfig(): IMinIOConfig {
+    export function GenMinIOConfig(
+        listenUpdates: boolean = false
+    ): IMinIOConfig {
         const uid = uuid.v4();
         return {
             Bucket: "test-store-" + uid,
+            ListenUpdates: listenUpdates,
             EndPoint: "127.0.0.1",
             Port: 9000,
             UseSSL: false,

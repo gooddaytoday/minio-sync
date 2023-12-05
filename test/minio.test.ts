@@ -137,6 +137,7 @@ describe("MinIO DeleteFile", () => {
 describe("MinIO GetObjects", () => {
     it("should return an empty Map object if there are no objects in the bucket", async () => {
         const config = testsconfig.GenMinIOConfig();
+        config.ListenUpdates = false; // Disable the listener cause removing the bucket conflicts with the object's update listener
         const minioInstance = new MinIO(config);
 
         try {
