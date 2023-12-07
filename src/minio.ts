@@ -1,5 +1,6 @@
 import * as fs from "fs-extra";
 import * as minio from "minio";
+import * as os from "os";
 import { ObjectEvent, TObjectsListener } from "./manager";
 import { CalcEtag, Log } from "./utils";
 
@@ -111,6 +112,7 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
+            objectName = ProcessObjectName(objectName);
             const res = await this.PutObject(objectName, filePath);
             if (res)
                 Log(
@@ -156,6 +158,7 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
+            objectName = ProcessObjectName(objectName);
             if (!this.objects.has(objectName)) {
                 throw new Error(`UpdateFile: File ${objectName} not found`);
             }
@@ -172,6 +175,7 @@ export default class MinIO {
 
     public async DeleteFile(objectName: string): Promise<void> {
         try {
+            objectName = ProcessObjectName(objectName);
             if (!this.objects.has(objectName)) {
                 throw new Error(`DeleteFile: File ${objectName} not found`);
             }
@@ -189,6 +193,7 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
+            objectName = ProcessObjectName(objectName);
             await this.client.fGetObject(this.bucket, objectName, filePath);
             Log(
                 `File downloaded successfully from ${this.bucket}/${objectName}`
@@ -232,4 +237,10 @@ export default class MinIO {
         });
         return result;
     }
+}
+
+const win = os.platform() === "win32";
+
+export function ProcessObjectName(objectName: string): string {
+    return win ? objectName.replace(/\\/g, "/") : objectName; // Deduplicate \\ in objectName in case of Windows and replace \ with /
 }
