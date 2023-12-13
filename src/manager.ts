@@ -14,7 +14,7 @@ export type TObjectsListener = (
 ) => Promise<void>;
 
 export interface IStorage {
-    AddObjectsListener(cb: TObjectsListener): Promise<void>;
+    AddObjectsListener(cb: TObjectsListener): void;
     /** Object name => object data */
     Objects: Map<string, TObjItem>;
     UploadFile(objectName: string, filePath: string): Promise<void>;
