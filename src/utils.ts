@@ -10,7 +10,19 @@ export function Log(message?: any, ...optionalParams: any[]): void {
     if (DEV && !TEST) console.log(message, ...optionalParams);
 }
 
-type TObjItem = {
+export function DebugAssert(condition: boolean, message: string): void {
+    if (DEV && !condition) {
+        throw new Error(message);
+    }
+}
+
+export function DebugFail(message: string): void {
+    if (DEV) {
+        throw new Error(message);
+    }
+}
+
+export type TObjItem = {
     size: number;
     etag: string | null;
 };
