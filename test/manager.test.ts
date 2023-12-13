@@ -1,19 +1,40 @@
+/* eslint-disable @typescript-eslint/no-misused-promises */
 /* eslint-disable @typescript-eslint/unbound-method */
-import { IPermissions, IStorage, Manager } from "../src/manager";
+import fsExtra from "fs-extra";
+import queue from "p-queue";
+import path from "path";
+import { IPermissions, IStorage, Manager, ObjectEvent } from "../src/manager";
+import * as utils from "../src/utils";
 
 describe("Manager's unit tests", () => {
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
     const rootPath = __dirname;
     function emptyPromiseMock(timeout: number = 100): jest.Mock {
-        return jest
-            .fn()
-            .mockImplementation(
-                () => new Promise(resolve => setTimeout(resolve, timeout))
-            );
+        return jest.fn(
+            () => new Promise(resolve => setTimeout(resolve, timeout))
+        );
     }
-    function CreateStorage(): IStorage {
+
+    const DefaultObjectName = "example.txt";
+    const DefaultFullPath = path.join(rootPath, DefaultObjectName);
+    const MapWithObject = new Map([
+        [
+            DefaultObjectName,
+            {
+                size: 1024,
+                etag: "123e4567-e89b-12d3-a456-426655440000",
+            },
+        ],
+    ]);
+    function CreateStorage(
+        objects: Map<string, utils.TObjItem> = new Map()
+    ): IStorage {
         return {
             AddObjectsListener: jest.fn(),
-            Objects: new Map(),
+            Objects: objects,
             UploadFile: emptyPromiseMock(),
             UpdateFile: emptyPromiseMock(),
             DeleteFile: emptyPromiseMock(),
@@ -58,28 +79,7 @@ describe("Manager's unit tests", () => {
         expect(storage.DeleteFile).toHaveBeenCalledWith("objectName");
     });
 
-    // AddToGlobalQueue method adds task to globalQueue
-    it("should add task to globalQueue when AddToGlobalQueue is called", () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
-        const cb = jest.fn();
-        manager["AddToGlobalQueue"](cb);
-        expect(cb).toHaveBeenCalled();
-    });
-
-    // AddToQueue method adds task to queue for objectName
-    it("should add task to queue for objectName when AddToQueue is called", () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
-        const cb = jest.fn();
-        manager["AddToQueue"]("objectName", cb);
-        expect(cb).toHaveBeenCalled();
-    });
-
-    // Permissions.Write is false, methods don't add task to queueMap
-    it("should not add task to queueMap when Permissions.Write is false", () => {
+    it("should not upload, update or delete when Permissions.Write is false", () => {
         const storage: IStorage = CreateStorage();
         const permissions: IPermissions = {
             Read: true,
@@ -146,6 +146,14 @@ describe("Manager's unit tests", () => {
     //    calcEtagMock.mockRestore();
     //});
 
+    function GlobalQueue(manager: Manager): queue {
+        return manager["queueing"]["globalQueue"];
+    }
+
+    function QueueMap(manager: Manager): Map<string, queue> {
+        return manager["queueing"]["queueMap"];
+    }
+
     // GlobalQueue runs exclusive after all in queueMap
     it("should run global task after all object tasks are completed", async () => {
         const storage: IStorage = CreateStorage();
@@ -160,18 +168,18 @@ describe("Manager's unit tests", () => {
         manager.Sync();
 
         // Ensure global task is added to global queue
-        expect(manager["globalQueue"].size).toBe(0);
-        expect(manager["globalQueue"].pending).toBe(1);
+        expect(GlobalQueue(manager).size).toBe(0);
+        expect(GlobalQueue(manager).pending).toBe(1);
 
         // Ensure object tasks are added to object queues
-        expect(manager["queueMap"].size).toBe(2);
+        expect(QueueMap(manager).size).toBe(2);
 
         // Wait for all tasks to complete
-        await manager["globalQueue"].onIdle();
+        await GlobalQueue(manager).onIdle();
 
         // Ensure global task is completed after all object tasks
-        expect(manager["globalQueue"].size).toBe(0);
-        expect(manager["globalQueue"].pending).toBe(0);
+        expect(GlobalQueue(manager).size).toBe(0);
+        expect(GlobalQueue(manager).pending).toBe(0);
     });
 
     // QueueMap runs exclusive for each objectName
@@ -185,17 +193,15 @@ describe("Manager's unit tests", () => {
         manager.UploadFile("objectName2", "filePath2");
 
         // Ensure object tasks are added to object queues
-        expect(manager["queueMap"].size).toBe(2);
+        expect(QueueMap(manager).size).toBe(2);
 
         // Wait for all tasks to complete
-        await manager["globalQueue"].onIdle();
+        await GlobalQueue(manager).onIdle();
 
         // Ensure object tasks are completed
-        const all = Array.from(manager["queueMap"].values()).map(q =>
-            q.onIdle()
-        );
+        const all = Array.from(QueueMap(manager).values()).map(q => q.onIdle());
         await Promise.all(all);
-        expect(manager["queueMap"].size).toBe(0);
+        expect(QueueMap(manager).size).toBe(0);
     });
 
     // GlobalQueue runs tasks in parallel
@@ -212,18 +218,100 @@ describe("Manager's unit tests", () => {
         manager.Sync();
 
         // Ensure global task is added to global queue
-        expect(manager["globalQueue"].size).toBe(0);
-        expect(manager["globalQueue"].pending).toBe(1);
+        expect(GlobalQueue(manager).size).toBe(0);
+        expect(GlobalQueue(manager).pending).toBe(1);
 
         // Ensure object tasks are added to object queues
-        expect(manager["queueMap"].size).toBe(2);
+        expect(QueueMap(manager).size).toBe(2);
 
         // Wait for all tasks to complete
-        await manager["globalQueue"].onIdle();
+        await GlobalQueue(manager).onIdle();
 
-        expect(manager["queueMap"].size).toBe(0);
+        expect(QueueMap(manager).size).toBe(0);
 
         // Ensure global task is completed after all object tasks
-        expect(manager["globalQueue"].size).toBe(0);
+        expect(GlobalQueue(manager).size).toBe(0);
+    });
+
+    it("should delete a file when it exists locally", async () => {
+        const storage: IStorage = CreateStorage();
+        const manager = new Manager(rootPath, storage, AllPermissions);
+        const existsMock = jest
+            .spyOn(fsExtra, "exists")
+            .mockImplementation(() => Promise.resolve(true));
+        const unlinkMock = jest
+            .spyOn(fsExtra, "unlink")
+            .mockImplementation(() => Promise.resolve());
+
+        await manager["OnObjectEvent"](ObjectEvent.Delete, DefaultObjectName);
+        expect(existsMock).toHaveBeenCalledWith(DefaultFullPath);
+        expect(unlinkMock).toHaveBeenCalledWith(DefaultFullPath);
+
+        existsMock.mockRestore();
+        unlinkMock.mockRestore();
+    });
+
+    it("should download a file when it is not exists in local storage's objects", async () => {
+        const storage: IStorage = CreateStorage();
+
+        const manager = new Manager(rootPath, storage, AllPermissions);
+        const mockDownloadFile = jest
+            .spyOn(storage, "DownloadFile")
+            .mockResolvedValue();
+
+        await manager["OnObjectEvent"](ObjectEvent.Create, DefaultObjectName);
+        expect(mockDownloadFile).toHaveBeenCalledWith(
+            DefaultObjectName,
+            DefaultFullPath
+        );
+    });
+
+    it("should download a file when it is exists in local storage's objects and does not exist locally", async () => {
+        const storage: IStorage = CreateStorage(MapWithObject);
+
+        const manager = new Manager(rootPath, storage, AllPermissions);
+        const mockIsFileEqual = jest
+            .spyOn(utils, "IsFileEqual")
+            .mockResolvedValue(false);
+        const mockDownloadFile = jest
+            .spyOn(storage, "DownloadFile")
+            .mockResolvedValue();
+
+        await manager["OnObjectEvent"](ObjectEvent.Create, DefaultObjectName);
+
+        expect(mockIsFileEqual).toHaveBeenCalledWith(
+            DefaultFullPath,
+            expect.anything()
+        );
+        expect(mockDownloadFile).toHaveBeenCalledWith(
+            DefaultObjectName,
+            DefaultFullPath
+        );
+
+        mockIsFileEqual.mockRestore();
+        mockDownloadFile.mockRestore();
+    });
+
+    it("should not download a file when it is created but already exists locally", async () => {
+        const storage: IStorage = CreateStorage(MapWithObject);
+
+        const manager = new Manager(rootPath, storage, AllPermissions);
+        const mockIsFileEqual = jest
+            .spyOn(utils, "IsFileEqual")
+            .mockResolvedValue(true);
+        const mockDownloadFile = jest
+            .spyOn(storage, "DownloadFile")
+            .mockResolvedValue();
+
+        await manager["OnObjectEvent"](ObjectEvent.Create, DefaultObjectName);
+
+        expect(mockIsFileEqual).toHaveBeenCalledWith(
+            DefaultFullPath,
+            expect.anything()
+        );
+        expect(mockDownloadFile).not.toHaveBeenCalled();
+
+        mockIsFileEqual.mockRestore();
+        mockDownloadFile.mockRestore();
     });
 });

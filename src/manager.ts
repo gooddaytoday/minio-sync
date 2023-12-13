@@ -1,22 +1,20 @@
 import { exists, unlink } from "fs-extra";
-import queue from "p-queue";
 import * as path from "path";
-import { IsFileEqual, Log } from "./utils";
-
-type TObjItem = {
-    size: number;
-    etag: string | null;
-};
+import Queueing from "./queueing";
+import { IsFileEqual, Log, TObjItem } from "./utils";
 
 export const enum ObjectEvent {
     Create,
     Delete,
 }
 
-export type TObjectsListener = (event: ObjectEvent, objectName: string) => void;
+export type TObjectsListener = (
+    event: ObjectEvent,
+    objectName: string
+) => Promise<void>;
 
 export interface IStorage {
-    AddObjectsListener(cb: TObjectsListener): void;
+    AddObjectsListener(cb: TObjectsListener): Promise<void>;
     /** Object name => object data */
     Objects: Map<string, TObjItem>;
     UploadFile(objectName: string, filePath: string): Promise<void>;
@@ -42,8 +40,7 @@ export class Manager implements IManager {
     private rootPath: string;
     private storage: IStorage;
     private permissions: IPermissions;
-    private globalQueue: queue = new queue({ concurrency: 1 });
-    private queueMap = new Map<string, queue>();
+    private queueing = new Queueing();
 
     constructor(
         rootPath: string,
@@ -53,14 +50,14 @@ export class Manager implements IManager {
         this.rootPath = rootPath;
         this.storage = storage;
         this.permissions = permissions;
-        this.storage.AddObjectsListener(this.OnObjectEvent.bind(this));
+        void this.storage.AddObjectsListener(this.OnObjectEvent.bind(this));
     }
 
     public UploadFile(objectName: string, filePath: string): void {
         if (!this.permissions.Write) {
             Log(`UploadFile ${filePath}: Write permission denied`);
         } else {
-            this.AddToQueue(objectName, () =>
+            this.queueing.AddToQueue(objectName, () =>
                 this.storage.UploadFile(objectName, filePath)
             );
         }
@@ -70,7 +67,7 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`UpdateFile ${filePath}: Write permission denied`);
         } else {
-            this.AddToQueue(objectName, () =>
+            this.queueing.AddToQueue(objectName, () =>
                 this.storage.UpdateFile(objectName, filePath)
             );
         }
@@ -80,7 +77,7 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`DeleteFile ${objectName}: Write permission denied`);
         } else {
-            this.AddToQueue(objectName, () =>
+            this.queueing.AddToQueue(objectName, () =>
                 this.storage.DeleteFile(objectName)
             );
         }
@@ -91,7 +88,7 @@ export class Manager implements IManager {
             Log("Sync: Read permission denied");
             return;
         }
-        this.AddToGlobalQueue(async () => {
+        this.queueing.AddToGlobalQueue(async () => {
             try {
                 Log(" --- SYNC ---");
                 await this.DownloadObjects();
@@ -104,36 +101,40 @@ export class Manager implements IManager {
         });
     }
 
-    private OnObjectEvent(event: ObjectEvent, objectName: string): void {
+    private async OnObjectEvent(
+        event: ObjectEvent,
+        objectName: string
+    ): Promise<void> {
         const fullPath = path.join(this.rootPath, objectName);
         switch (event) {
             case ObjectEvent.Create:
-                this.AddToQueue(objectName, async () => {
-                    try {
-                        const obj = this.storage.Objects.get(objectName);
-                        if (!obj || !(await IsFileEqual(fullPath, obj))) {
-                            await this.storage.DownloadFile(
-                                objectName,
-                                fullPath
-                            );
+                return new Promise((resolve, reject) => {
+                    this.queueing.AddToQueue(objectName, async () => {
+                        try {
+                            const obj = this.storage.Objects.get(objectName);
+                            if (!obj || !(await IsFileEqual(fullPath, obj))) {
+                                await this.storage.DownloadFile(
+                                    objectName,
+                                    fullPath
+                                );
+                            }
+                            resolve();
+                        } catch (e) {
+                            console.error("Error while downloading", e);
+                            reject(e);
+                            throw e;
                         }
-                    } catch (e) {
-                        console.error("Error while downloading", e);
-                        throw e;
-                    }
+                    });
                 });
-                break;
             case ObjectEvent.Delete:
-                void (async () => {
-                    try {
-                        if (await exists(fullPath)) {
-                            await unlink(fullPath);
-                        }
-                    } catch (e) {
-                        console.error("Error while deleting", e);
-                        throw e;
+                try {
+                    if (await exists(fullPath)) {
+                        await unlink(fullPath);
                     }
-                })();
+                } catch (e) {
+                    console.error("Error while deleting", e);
+                    throw e;
+                }
                 break;
             default:
                 throw new Error(`Unknown object event: ${event}`);
@@ -150,43 +151,5 @@ export class Manager implements IManager {
             }
         }
         await Promise.all(downloads);
-    }
-
-    /** Adds cb to global queue that run exclusive after all in queueMap */
-    private AddToGlobalQueue(cb: () => Promise<void>): void {
-        let task: Promise<void> | undefined;
-        if (this.queueMap.size > 0) {
-            const allQueues = Array.from(this.queueMap.values()).map(q =>
-                q.onIdle()
-            );
-            const newGlobalTask = Promise.all(allQueues).then(cb);
-            task = this.globalQueue.add(() => newGlobalTask);
-        } else {
-            task = this.globalQueue.add(cb);
-        }
-        task.catch(e => {
-            console.error("Error in global queue", e);
-            throw e;
-        });
-    }
-
-    /** Adds cb to queue for objectName */
-    private AddToQueue(objectName: string, cb: () => Promise<void>): void {
-        if (this.globalQueue.size > 0) {
-            const newTask = this.globalQueue.onIdle().then(cb);
-            cb = () => newTask;
-        }
-        let objQueue = this.queueMap.get(objectName);
-        if (!objQueue) {
-            objQueue = new queue({ concurrency: 1 });
-            this.queueMap.set(objectName, objQueue);
-        }
-        objQueue.add(cb).catch(e => {
-            console.error(`Error in queue of object ${objectName}`, e);
-            throw e;
-        });
-        void objQueue.onIdle().finally(() => {
-            this.queueMap.delete(objectName);
-        });
     }
 }

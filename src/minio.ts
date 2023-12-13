@@ -2,7 +2,7 @@ import * as fs from "fs-extra";
 import * as minio from "minio";
 import * as os from "os";
 import { ObjectEvent, TObjectsListener } from "./manager";
-import { CalcEtag, Log } from "./utils";
+import { CalcEtag, Log, TObjItem } from "./utils";
 
 export interface IMinIOConfig {
     Bucket: string;
@@ -13,11 +13,6 @@ export interface IMinIOConfig {
     AccessKey: string;
     SecretKey: string;
 }
-
-type TObjItem = {
-    size: number;
-    etag: string;
-};
 
 interface IMinIONotificationEvent {
     eventName: string;
@@ -83,7 +78,13 @@ export default class MinIO {
                 (event: IMinIONotificationEvent) => {
                     if (this.objectsListener) {
                         const mappedEvent = ToManagerObjEvent[event.eventName];
-                        this.objectsListener(mappedEvent, event.s3.object.key);
+                        this.objectsListener(
+                            mappedEvent,
+                            event.s3.object.key
+                        ).catch(e => {
+                            console.error("Error in objectsListener", e);
+                            throw e;
+                        });
                     } else {
                         throw new Error("Not set objectsListener");
                     }

@@ -3,12 +3,12 @@ import * as path from "path";
 import { v4 } from "uuid";
 import MinIO, { ProcessObjectName } from "../src/minio";
 import * as utils from "../src/utils";
-import { testsconfig } from "./testsconfig";
+import { testsCommon } from "./testsCommon";
 
-const minioConf = testsconfig.GenMinIOConfig();
+const minioConf = testsCommon.GenMinIOConfig();
 let minioInstance: MinIO;
 let logSpy: jest.SpyInstance;
-const otherFilePath = path.join(__dirname, "testsconfig.ts");
+const otherFilePath = path.join(__dirname, "testsCommon.ts");
 
 beforeAll(async () => {
     logSpy = jest.spyOn(utils, "Log");
@@ -136,7 +136,7 @@ describe("MinIO DeleteFile", () => {
 
 describe("MinIO GetObjects", () => {
     it("should return an empty Map object if there are no objects in the bucket", async () => {
-        const config = testsconfig.GenMinIOConfig();
+        const config = testsCommon.GenMinIOConfig();
         config.ListenUpdates = false; // Disable the listener cause removing the bucket conflicts with the object's update listener
         const minioInstance = new MinIO(config);
 
@@ -166,31 +166,31 @@ describe("MinIO GetObjects", () => {
 });
 
 describe("ProcessObjectName", () => {
-    it('should return the same string when no backslashes are present', () => {
+    it("should return the same string when no backslashes are present", () => {
         const objectName = "example";
         const result = ProcessObjectName(objectName);
         expect(result).toBe("example");
     });
 
-    it('should return GUID string as is', () => {
+    it("should return GUID string as is", () => {
         const GUIDObjectName = "a0b5d6c7-d8e9-f0a1-b2c3-d4e5f6a7b8c9";
         const result = ProcessObjectName(GUIDObjectName);
         expect(result).toBe(GUIDObjectName);
     });
 
-    it('should replace a single backslash with a forward slash', () => {
+    it("should replace a single backslash with a forward slash", () => {
         const objectName = "example\\test";
         const result = ProcessObjectName(objectName);
         expect(result).toBe("example/test");
     });
 
-    it('should replace a single backslash at the end of the string with a forward slash', () => {
+    it("should replace a single backslash at the end of the string with a forward slash", () => {
         const objectName = "example\\";
         const result = ProcessObjectName(objectName);
         expect(result).toBe("example/");
     });
 
-    it('should replace a single backslash at the beginning of the string with a forward slash', () => {
+    it("should replace a single backslash at the beginning of the string with a forward slash", () => {
         const objectName = "\\example";
         const result = ProcessObjectName(objectName);
         expect(result).toBe("/example");
