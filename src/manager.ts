@@ -128,9 +128,10 @@ export class Manager implements IManager {
                 });
             case ObjectEvent.Delete:
                 try {
-                    console.log("Deleting? ", fullPath);
-                    if (await exists(fullPath)) {
-                        console.log("Deleting", fullPath);
+                    if (
+                        this.storage.Objects.has(objectName) &&
+                        (await exists(fullPath))
+                    ) {
                         await unlink(fullPath);
                     }
                 } catch (e) {

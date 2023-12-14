@@ -234,7 +234,7 @@ describe("Manager's unit tests", () => {
     });
 
     it("should delete a file when it exists locally", async () => {
-        const storage: IStorage = CreateStorage();
+        const storage: IStorage = CreateStorage(MapWithObject);
         const manager = new Manager(rootPath, storage, AllPermissions);
         const existsMock = jest
             .spyOn(fsExtra, "exists")
