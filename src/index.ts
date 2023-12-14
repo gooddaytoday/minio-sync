@@ -1,11 +1,12 @@
 import { IPermissions, Manager } from "./manager";
 import MinIO, { IMinIOConfig } from "./minio";
 import { Log } from "./utils";
-import { Watcher } from "./watcher";
+import { IWatchOptions, Watcher } from "./watcher";
 
 interface ISyncConfig {
     Permissions: IPermissions;
     MinIO: IMinIOConfig;
+    WatchOptions?: IWatchOptions;
 }
 
 export default async function Sync(
@@ -22,6 +23,6 @@ export default async function Sync(
         Read: config.Permissions.Read,
         Write: config.Permissions.Write,
     });
-    const watcher = new Watcher(rootPath, manager);
+    const watcher = new Watcher(rootPath, manager, config.WatchOptions);
     return watcher;
 }

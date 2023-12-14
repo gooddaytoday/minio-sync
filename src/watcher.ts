@@ -2,22 +2,40 @@ import * as chokidar from "chokidar";
 import { Manager } from "./manager";
 import { Log } from "./utils";
 
+export interface IWatchOptions extends chokidar.WatchOptions {}
+
+type TAnymatchFn = (testString: string) => boolean;
+type TAnymatchPattern = string | RegExp | TAnymatchFn;
+const DefaultIgnored: TAnymatchPattern[] = ["node_modules/**"];
+
 export class Watcher {
     private watcher: chokidar.FSWatcher;
     private rootPath: string;
     private manager: Manager;
     private logChanges: boolean = false;
 
-    constructor(rootPath: string, manager: Manager) {
+    constructor(rootPath: string, manager: Manager, opts?: IWatchOptions) {
         this.rootPath = rootPath;
         this.manager = manager;
-        this.watcher = chokidar.watch(rootPath, {
-            ignored: ["node_modules/**"],
-            awaitWriteFinish: {
+        if (typeof opts == "undefined") {
+            opts = {};
+        }
+        if (typeof opts.ignored == "undefined") {
+            opts.ignored = DefaultIgnored;
+        } else {
+            if (Array.isArray(opts.ignored)) {
+                opts.ignored.push(...DefaultIgnored);
+            } else {
+                opts.ignored = DefaultIgnored.slice().concat(opts.ignored);
+            }
+        }
+        if (typeof opts.awaitWriteFinish == "undefined") {
+            opts.awaitWriteFinish = {
                 pollInterval: 500,
                 stabilityThreshold: 5000,
-            },
-        });
+            };
+        }
+        this.watcher = chokidar.watch(rootPath, opts);
 
         this.watcher
             .on("add", this.OnAdd.bind(this))
