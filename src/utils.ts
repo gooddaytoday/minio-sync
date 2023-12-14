@@ -43,14 +43,51 @@ export async function IsFileEqual(
     }
 }
 
-const chunkSize = 64 * 1024 * 1024;
-const emptyEtag = "d41d8cd98f00b204e9800998ecf8427e";
+const ChunkSize = 64 * 1024 * 1024;
+const EmptyEtag = "d41d8cd98f00b204e9800998ecf8427e";
 
-export function CalcEtag(filePath: string): Promise<string> {
+function IsErrnoException(error: any): error is NodeJS.ErrnoException {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return error instanceof Error && (<any>error).code !== undefined;
+}
+
+const CalcEtagAttempts = 5;
+
+export async function CalcEtag(filePath: string): Promise<string> {
+    const errors: Error[] = [];
+    for (let i = 0; i <= CalcEtagAttempts; i++) {
+        try {
+            const etag = await DoCalcEtag(filePath);
+            return etag;
+        } catch (error) {
+            if (IsErrnoException(error)) {
+                if (error.code == "EBUSY") {
+                    if (i != CalcEtagAttempts) {
+                        await new Promise(resolve =>
+                            setTimeout(resolve, 5000 * i)
+                        );
+                        continue;
+                    } else {
+                        errors.push(error);
+                    }
+                }
+            }
+            if (error instanceof Error) {
+                errors.push(error);
+            } else {
+                throw error;
+            }
+        }
+    }
+    DebugAssert(errors.length > 0, "Cannot be empty errors list");
+    throw new AggregateError(errors, "Errors while calculating md5");
+}
+
+function DoCalcEtag(filePath: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const partHashes: Buffer[] = [];
         const stream = fs.createReadStream(filePath, {
-            highWaterMark: chunkSize,
+            highWaterMark: ChunkSize,
         });
 
         stream.on("data", partData => {
@@ -59,7 +96,7 @@ export function CalcEtag(filePath: string): Promise<string> {
 
         stream.on("end", () => {
             if (partHashes.length == 0) {
-                resolve(emptyEtag);
+                resolve(EmptyEtag);
             } else {
                 const hashesCount = partHashes.length;
                 if (hashesCount > 1) {
@@ -79,4 +116,27 @@ export function CalcEtag(filePath: string): Promise<string> {
             reject(error);
         });
     });
+}
+
+export class AggregateError extends Error {
+    errors: Error[];
+    constructor(errors: Error[], message: string) {
+        super(message);
+        this.errors = [];
+        const uniqErrsMsgs = new Set<string>();
+        for (const err of errors) {
+            if (!uniqErrsMsgs.has(err.message)) {
+                uniqErrsMsgs.add(err.message);
+                this.errors.push(err);
+            }
+        }
+    }
+
+    get message(): string {
+        let aggregateMessage = super.message + ":\n";
+        for (const error of this.errors) {
+            aggregateMessage += error.message + "\n";
+        }
+        return aggregateMessage;
+    }
 }
