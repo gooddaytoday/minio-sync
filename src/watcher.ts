@@ -35,6 +35,7 @@ export class Watcher {
                 stabilityThreshold: 5000,
             };
         }
+        opts.ignoreInitial = false; // Should be false in current implementation
         this.watcher = chokidar.watch(rootPath, opts);
 
         this.watcher
