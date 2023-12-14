@@ -96,7 +96,7 @@ export class Manager implements IManager {
                 console.error("Error while syncing", e);
                 throw e;
             } finally {
-                Log(" --- SYNC ENDED ---");
+                Log(" --- SYNC ENDED, Listening for changes --- \n\n");
             }
         });
     }
@@ -128,7 +128,9 @@ export class Manager implements IManager {
                 });
             case ObjectEvent.Delete:
                 try {
+                    console.log("Deleting? ", fullPath);
                     if (await exists(fullPath)) {
+                        console.log("Deleting", fullPath);
                         await unlink(fullPath);
                     }
                 } catch (e) {
