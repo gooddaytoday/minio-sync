@@ -9,6 +9,14 @@ on:
 jobs:
   release:
     name: Release
+    services:
+      minio:
+        image: wktk/minio-server
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: nPRQd3IyCfMBV8HUjmyy
+          MINIO_SECRET_KEY: dYcdcLpIzgGSwL23m86hA304PtctxNPpXmgZkTAa
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
