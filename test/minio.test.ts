@@ -10,7 +10,7 @@ let minioInstance: MinIO;
 let logSpy: jest.SpyInstance;
 const otherFilePath = path.join(__dirname, "testsCommon.ts");
 
-describe.skip("MinIO", () => {
+describe("MinIO", () => {
     beforeAll(async () => {
         logSpy = jest.spyOn(utils, "Log");
         minioInstance = new MinIO(minioConf);
