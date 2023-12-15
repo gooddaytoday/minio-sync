@@ -7,6 +7,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      minio:
+        image: wktk/minio-server
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: nPRQd3IyCfMBV8HUjmyy
+          MINIO_SECRET_KEY: dYcdcLpIzgGSwL23m86hA304PtctxNPpXmgZkTAa
+
     strategy:
       matrix:
         node-version: [16.x, 18.x]

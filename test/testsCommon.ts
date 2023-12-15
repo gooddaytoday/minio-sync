@@ -12,8 +12,10 @@ export module testsCommon {
             EndPoint: "127.0.0.1",
             Port: 9000,
             UseSSL: false,
-            AccessKey: "nPRQd3IyCfMBV8HUjmyy",
-            SecretKey: "dYcdcLpIzgGSwL23m86hA304PtctxNPpXmgZkTAa",
+            AccessKey: process.env.MINIO_ACCESS_KEY || "nPRQd3IyCfMBV8HUjmyy",
+            SecretKey:
+                process.env.MINIO_SECRET_KEY ||
+                "dYcdcLpIzgGSwL23m86hA304PtctxNPpXmgZkTAa",
         };
     }
 
