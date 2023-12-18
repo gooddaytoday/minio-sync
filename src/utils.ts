@@ -22,6 +22,25 @@ export function DebugFail(message: string): void {
     }
 }
 
+/** Generates uniq Hash string */
+export function GUID(): string {
+    const bytes = crypto.randomBytes(16);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    return (
+        bytes.toString("hex", 0, 4) +
+        "-" +
+        bytes.toString("hex", 4, 6) +
+        "-" +
+        bytes.toString("hex", 6, 8) +
+        "-" +
+        bytes.toString("hex", 8, 10) +
+        "-" +
+        bytes.toString("hex", 10, 16)
+    );
+}
+
 export type TObjItem = {
     size: number;
     etag: string | null;
