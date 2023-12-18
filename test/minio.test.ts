@@ -1,11 +1,11 @@
 import * as fs from "fs-extra";
 import os from "os";
 import * as path from "path";
-import { v4 } from "uuid";
 import MinIO, { ProcessObjectName } from "../src/minio";
 import * as utils from "../src/utils";
 import { testsCommon } from "./testsCommon";
 
+const GUID = utils.GUID;
 const windows = os.platform() === "win32";
 const minioConf = testsCommon.GenMinIOConfig();
 let minioInstance: MinIO;
@@ -22,7 +22,7 @@ describe("MinIO", () => {
     describe("MinIO PutObject", () => {
         it("should successfully put a new object with unique name and file path", async () => {
             const filePath = __filename;
-            const objectName = v4();
+            const objectName = GUID();
 
             await minioInstance["PutObject"](objectName, filePath);
             const objectExists = await minioInstance.Client.statObject(
@@ -35,7 +35,7 @@ describe("MinIO", () => {
         });
 
         it("should successfully put an object with existing name but different file path, updates object metadata", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
 
             await minioInstance["PutObject"](objectName, filePath);
@@ -49,7 +49,7 @@ describe("MinIO", () => {
         });
 
         it("should return undefined when putting an object with existing name and same file path, metadata matches", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
 
             await minioInstance["PutObject"](objectName, filePath);
@@ -69,7 +69,7 @@ describe("MinIO", () => {
         });
 
         it("should throw an error when file path is invalid or empty", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = "";
 
             await expect(
@@ -81,7 +81,7 @@ describe("MinIO", () => {
     describe("MinIO UpdateFile", () => {
         // Uploads a file successfully when given a valid object name and file path
         it("should upload a file successfully when given a valid object name and file path", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
 
             await minioInstance.UploadFile(objectName, filePath);
@@ -96,7 +96,7 @@ describe("MinIO", () => {
 
     describe("MinIO UpdateFile", () => {
         it("should update the file when it already exists", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
             const putObjectSpy = jest.spyOn(minioInstance, <any>"PutObject");
 
@@ -110,7 +110,7 @@ describe("MinIO", () => {
         });
 
         it("should handle updating a file that does not exist", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
 
             await expect(
@@ -121,7 +121,7 @@ describe("MinIO", () => {
 
     describe("MinIO DeleteFile", () => {
         it("should delete the file when it exists", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
 
             await minioInstance.UploadFile(objectName, filePath);
@@ -133,7 +133,7 @@ describe("MinIO", () => {
         });
 
         it("should throw an error when the file does not exist", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             await expect(minioInstance.DeleteFile(objectName)).rejects.toThrow(
                 `DeleteFile: File ${objectName} not found`
             );
@@ -158,7 +158,7 @@ describe("MinIO", () => {
         });
 
         it("should return a Map object with the names and metadata of all objects in the bucket with a specific prefix", async () => {
-            const objectName = v4();
+            const objectName = GUID();
             const filePath = __filename;
             await minioInstance.UploadFile(objectName, filePath);
 

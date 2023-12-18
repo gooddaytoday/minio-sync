@@ -1,6 +1,5 @@
 import queue from "p-queue";
-import { v4 } from "uuid";
-import { DebugFail } from "./utils";
+import { DebugFail, GUID } from "./utils";
 
 export default class Queueing {
     private globalQueue: queue = new queue({ concurrency: 1 });
@@ -64,7 +63,7 @@ export default class Queueing {
 
     private RenameQueue(objectName: string, queue: queue) {
         this.queueMap.delete(objectName); // Remove from map to create new
-        const newObjectName = `${objectName}_${v4()}`;
+        const newObjectName = `${objectName}_${GUID()}`;
         this.queueMap.set(newObjectName, queue);
     }
 }

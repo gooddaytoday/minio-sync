@@ -1,13 +1,12 @@
-import * as uuid from "uuid";
 import { IMinIOConfig } from "../src/minio";
+import { GUID } from "../src/utils";
 
 export module testsCommon {
     export function GenMinIOConfig(
         listenUpdates: boolean = false
     ): IMinIOConfig {
-        const uid = uuid.v4();
         return {
-            Bucket: "test-store-" + uid,
+            Bucket: "test-store-" + GUID(),
             ListenUpdates: listenUpdates,
             EndPoint: "127.0.0.1",
             Port: 9000,

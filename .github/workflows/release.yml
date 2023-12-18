@@ -44,11 +44,11 @@ jobs:
 
       - name: Commit package.json and package-lock.json
         run: |
-          git add package.json package-lock.json
+          HUSKY=0 git add package.json package-lock.json
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore(release): update package version [skip ci]"
+            HUSKY=0 git commit -m "chore(release): update package version [skip ci]"
             git push
           fi
       - name: Upload Code Coverage
