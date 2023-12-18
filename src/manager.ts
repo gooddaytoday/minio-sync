@@ -105,6 +105,10 @@ export class Manager implements IManager {
         event: ObjectEvent,
         objectName: string
     ): Promise<void> {
+        if (!this.permissions.Read) {
+            Log("Sync: Read permission denied");
+            return;
+        }
         const fullPath = path.join(this.rootPath, objectName);
         switch (event) {
             case ObjectEvent.Create:
