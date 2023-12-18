@@ -45,7 +45,11 @@ jobs:
       - name: Commit package.json and package-lock.json
         run: |
           git add package.json package-lock.json
-          git commit -m "chore(release): update package version [skip ci]"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(release): update package version [skip ci]"
+            git push
+          fi
       - name: Upload Code Coverage
         uses: codecov/codecov-action@v3.1.0
