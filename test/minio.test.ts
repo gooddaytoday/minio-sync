@@ -1,16 +1,18 @@
 import * as fs from "fs-extra";
+import os from "os";
 import * as path from "path";
 import { v4 } from "uuid";
 import MinIO, { ProcessObjectName } from "../src/minio";
 import * as utils from "../src/utils";
 import { testsCommon } from "./testsCommon";
 
+const windows = os.platform() === "win32";
 const minioConf = testsCommon.GenMinIOConfig();
 let minioInstance: MinIO;
 let logSpy: jest.SpyInstance;
 const otherFilePath = path.join(__dirname, "testsCommon.ts");
 
-describe.skip("MinIO", () => {
+describe("MinIO", () => {
     beforeAll(async () => {
         logSpy = jest.spyOn(utils, "Log");
         minioInstance = new MinIO(minioConf);
@@ -185,19 +187,22 @@ describe.skip("MinIO", () => {
         it("should replace a single backslash with a forward slash", () => {
             const objectName = "example\\test";
             const result = ProcessObjectName(objectName);
-            expect(result).toBe("example/test");
+            const processed = windows ? "example/test" : "example\\test";
+            expect(result).toBe(processed);
         });
 
         it("should replace a single backslash at the end of the string with a forward slash", () => {
             const objectName = "example\\";
             const result = ProcessObjectName(objectName);
-            expect(result).toBe("example/");
+            const processed = windows ? "example/" : "example\\";
+            expect(result).toBe(processed);
         });
 
         it("should replace a single backslash at the beginning of the string with a forward slash", () => {
             const objectName = "\\example";
             const result = ProcessObjectName(objectName);
-            expect(result).toBe("/example");
+            const processed = windows ? "/example" : "\\example";
+            expect(result).toBe(processed);
         });
     });
 
