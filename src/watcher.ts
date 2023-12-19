@@ -92,4 +92,8 @@ export class Watcher {
     public get Watcher(): chokidar.FSWatcher {
         return this.watcher;
     }
+
+    public async Close(): Promise<void> {
+        return this.watcher.close();
+    }
 }
