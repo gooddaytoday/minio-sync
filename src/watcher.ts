@@ -96,4 +96,12 @@ export class Watcher {
     public async Close(): Promise<void> {
         return this.watcher.close();
     }
+
+    /**
+     * Sets callback to be called on end of syncing
+     * @param cb Callback to be called on end of syncing
+     */
+    public OnSyncEnd(cb: () => void): void {
+        this.manager.OnSyncEnd(cb);
+    }
 }

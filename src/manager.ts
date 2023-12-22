@@ -41,6 +41,7 @@ export class Manager implements IManager {
     private storage: IStorage;
     private permissions: IPermissions;
     private queueing = new Queueing();
+    private onSyncEndCb: (() => void) | undefined;
 
     constructor(
         rootPath: string,
@@ -92,6 +93,9 @@ export class Manager implements IManager {
             try {
                 Log(" --- SYNC ---");
                 await this.DownloadObjects();
+                if (this.onSyncEndCb) {
+                    this.onSyncEndCb();
+                }
             } catch (e) {
                 console.error("Error while syncing", e);
                 throw e;
@@ -99,6 +103,10 @@ export class Manager implements IManager {
                 Log(" --- SYNC ENDED, Listening for changes --- \n\n");
             }
         });
+    }
+
+    public OnSyncEnd(cb: () => void): void {
+        this.onSyncEndCb = cb;
     }
 
     private async OnObjectEvent(
