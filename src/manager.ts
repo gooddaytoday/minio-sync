@@ -29,7 +29,7 @@ export interface IPermissions {
     Write: boolean;
 }
 
-interface IManager {
+export interface IManager {
     UploadFile(objectName: string, filePath: string): void;
     UpdateFile(objectName: string, filePath: string): void;
     DeleteFile(objectName: string): void;

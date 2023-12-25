@@ -5,6 +5,7 @@ import queue from "p-queue";
 import path from "path";
 import { IPermissions, IStorage, Manager, ObjectEvent } from "../src/manager";
 import * as utils from "../src/utils";
+import { testsCommon } from "./testsCommon";
 
 describe("Manager's unit tests", () => {
     afterEach(() => {
@@ -12,11 +13,6 @@ describe("Manager's unit tests", () => {
     });
 
     const rootPath = __dirname;
-    function emptyPromiseMock(timeout: number = 100): jest.Mock {
-        return jest.fn(
-            () => new Promise(resolve => setTimeout(resolve, timeout))
-        );
-    }
 
     const DefaultObjectName = "example.txt";
     const DefaultFullPath = path.join(rootPath, DefaultObjectName);
@@ -29,19 +25,7 @@ describe("Manager's unit tests", () => {
             },
         ],
     ]);
-    function CreateStorage(
-        objects: Map<string, utils.TObjItem> = new Map()
-    ): IStorage {
-        return {
-            AddObjectsListener: jest.fn(),
-            Objects: objects,
-            UploadFile: emptyPromiseMock(),
-            UpdateFile: emptyPromiseMock(),
-            DeleteFile: emptyPromiseMock(),
-            DownloadFile: emptyPromiseMock(),
-            RemoveBucket: emptyPromiseMock(),
-        };
-    }
+    const CreateStorage = testsCommon.CreateStorage;
     const AllPermissions: IPermissions = {
         Read: true,
         Write: true,

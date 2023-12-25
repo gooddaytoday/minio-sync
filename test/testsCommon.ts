@@ -1,7 +1,26 @@
+import { IStorage } from "../src/manager";
 import { IMinIOConfig } from "../src/minio";
-import { GUID } from "../src/utils";
+import { GUID, TObjItem } from "../src/utils";
+
+function emptyPromiseMock(timeout: number = 100): jest.Mock {
+    return jest.fn(() => new Promise(resolve => setTimeout(resolve, timeout)));
+}
 
 export module testsCommon {
+    export function CreateStorage(
+        objects: Map<string, TObjItem> = new Map()
+    ): IStorage {
+        return {
+            AddObjectsListener: jest.fn(),
+            Objects: objects,
+            UploadFile: emptyPromiseMock(),
+            UpdateFile: emptyPromiseMock(),
+            DeleteFile: emptyPromiseMock(),
+            DownloadFile: emptyPromiseMock(),
+            RemoveBucket: emptyPromiseMock(),
+        };
+    }
+
     export function GenMinIOConfig(
         listenUpdates: boolean = false
     ): IMinIOConfig {
