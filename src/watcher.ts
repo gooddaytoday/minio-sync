@@ -93,6 +93,14 @@ export class Watcher {
         return this.watcher;
     }
 
+    public StopWatch(): void {
+        this.watcher.unwatch(this.rootPath);
+    }
+
+    public ResumeWatch(): void {
+        this.watcher.add(this.rootPath);
+    }
+
     public async Close(): Promise<void> {
         return this.watcher.close();
     }
