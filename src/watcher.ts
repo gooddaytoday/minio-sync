@@ -12,6 +12,7 @@ export class Watcher {
     private watcher: chokidar.FSWatcher;
     private rootPath: string;
     private manager: Manager;
+    private stopWatchCount = 0;
     private logChanges: boolean = false;
 
     constructor(rootPath: string, manager: Manager, opts?: IWatchOptions) {
@@ -94,11 +95,21 @@ export class Watcher {
     }
 
     public StopWatch(): void {
-        this.watcher.unwatch(this.rootPath);
+        if (this.stopWatchCount == 0) {
+            this.watcher.unwatch(this.rootPath);
+        }
+        this.stopWatchCount++;
     }
 
     public ResumeWatch(): void {
-        this.watcher.add(this.rootPath);
+        if (this.stopWatchCount > 0) {
+            this.stopWatchCount--;
+            if (this.stopWatchCount == 0) {
+                this.watcher.add(this.rootPath);
+            }
+        } else {
+            throw new Error("Watcher is not stopped");
+        }
     }
 
     public async Close(): Promise<void> {
