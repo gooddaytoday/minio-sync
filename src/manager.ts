@@ -120,39 +120,51 @@ export class Manager implements IManager {
         const fullPath = path.join(this.rootPath, objectName);
         switch (event) {
             case ObjectEvent.Create:
-                return new Promise((resolve, reject) => {
-                    this.queueing.AddToQueue(objectName, async () => {
-                        try {
-                            const obj = this.storage.Objects.get(objectName);
-                            if (!obj || !(await IsFileEqual(fullPath, obj))) {
-                                await this.storage.DownloadFile(
-                                    objectName,
-                                    fullPath
-                                );
-                            }
-                            resolve();
-                        } catch (e) {
-                            console.error("Error while downloading", e);
-                            reject(e);
-                            throw e;
-                        }
-                    });
-                });
+                await this.OnObjectAdd(objectName, fullPath);
+                break;
             case ObjectEvent.Delete:
-                try {
-                    if (
-                        this.storage.Objects.has(objectName) &&
-                        (await exists(fullPath))
-                    ) {
-                        await unlink(fullPath);
-                    }
-                } catch (e) {
-                    console.error("Error while deleting", e);
-                    throw e;
-                }
+                await this.OnObjectDelete(objectName, fullPath);
                 break;
             default:
                 throw new Error(`Unknown object event: ${event}`);
+        }
+    }
+
+    private async OnObjectAdd(
+        objectName: string,
+        fullPath: string
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.queueing.AddToQueue(objectName, async () => {
+                try {
+                    const obj = this.storage.Objects.get(objectName);
+                    if (!obj || !(await IsFileEqual(fullPath, obj))) {
+                        await this.storage.DownloadFile(objectName, fullPath);
+                    }
+                    resolve();
+                } catch (e) {
+                    console.error("Error while downloading", e);
+                    reject(e);
+                    throw e;
+                }
+            });
+        });
+    }
+
+    private async OnObjectDelete(
+        objectName: string,
+        fullPath: string
+    ): Promise<void> {
+        try {
+            if (
+                this.storage.Objects.has(objectName) &&
+                (await exists(fullPath))
+            ) {
+                await unlink(fullPath);
+            }
+        } catch (e) {
+            console.error("Error while deleting", e);
+            throw e;
         }
     }
 
