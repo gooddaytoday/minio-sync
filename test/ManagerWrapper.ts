@@ -3,25 +3,41 @@ import {
     IManager,
     IPermissions,
     IStorage,
-    Manager as ManagerClass,
+    Manager,
     ObjectEvent,
 } from "../src/manager";
 import Queueing from "../src/queueing";
 
 /** Wrapper over Manager class */
 export class ManagerWrapper implements IManager {
-    private manager: ManagerClass;
+    private manager: Manager;
 
     constructor(
         rootPath: string,
         storage: IStorage,
         permissions: IPermissions
     ) {
-        this.manager = new ManagerClass(rootPath, storage, permissions);
+        this.manager = new Manager(rootPath, storage, permissions);
     }
 
     public GetQueue(objectName: string): queue | undefined {
         return this.queueing["queueMap"].get(objectName);
+    }
+
+    public get GlobalQueue(): queue {
+        return this.manager["queueing"]["globalQueue"];
+    }
+
+    public get QueueMap(): Map<string, queue> {
+        return this.queueing["queueMap"];
+    }
+
+    public AllQueues(): Promise<void[]> {
+        return Promise.all<void>(
+            Array.from(this.QueueMap.values())
+                .map(q => q.onIdle())
+                .concat(this.GlobalQueue.onIdle())
+        );
     }
 
     public get rootPath(): string {
@@ -73,5 +89,13 @@ export class ManagerWrapper implements IManager {
 
     public OnSyncEnd(cb: () => void): void {
         this.manager.OnSyncEnd(cb);
+    }
+
+    public OnStopWatch(cb: () => void): void {
+        this.manager.OnStopWatch(cb);
+    }
+
+    public OnResumeWatch(cb: () => void): void {
+        this.manager.OnResumeWatch(cb);
     }
 }

@@ -2,10 +2,7 @@
 import { unlinkSync } from "fs";
 import { copyFileSync } from "fs-extra";
 import path from "path";
-import { IPermissions, Manager as ManagerClass } from "../src/manager";
 import * as utils from "../src/utils";
-import { Watcher } from "../src/watcher";
-import { ManagerWrapper } from "./ManagerWrapper";
 import { testsCommon } from "./testsCommon";
 
 describe("Watcher", () => {
@@ -13,42 +10,18 @@ describe("Watcher", () => {
         jest.restoreAllMocks();
     });
 
-    const CreateStorage = testsCommon.CreateStorage;
-
-    const rootPath = __dirname;
-    const DefaultObjectName = "example.txt";
-    const AllPermissions: IPermissions = {
-        Read: true,
-        Write: true,
-    };
-
-    function Init(permissions: IPermissions = AllPermissions): {
-        manager: ManagerWrapper;
-        watcher: Watcher;
-    } {
-        // Mock Manager
-        const manager = new ManagerWrapper(
-            rootPath,
-            CreateStorage(),
-            permissions
-        );
-        const watcher = new Watcher(
-            rootPath,
-            manager as unknown as ManagerClass
-        );
-        return { manager: manager, watcher: watcher };
-    }
+    const { Init, rootPath, DefaultObjectName } = testsCommon;
 
     // Watcher can be instantiated with a root path and a Manager instance
-    it("should instantiate Watcher with root path and Manager instance", () => {
-        const { manager, watcher } = Init();
+    it("should instantiate Watcher with root path and Manager instance", async () => {
+        const { manager, watcher } = await Init();
         expect(watcher["rootPath"]).toBe(rootPath);
         expect(watcher["manager"]).toBe(manager);
     });
 
     // On 'add' event, Watcher uploads the file to the Manager
     it("should upload the file to the Manager when an 'add' event occurs", async () => {
-        const { manager, watcher } = Init();
+        const { manager, watcher } = await Init();
         // Trigger 'add' event
         watcher["OnAdd"](DefaultObjectName);
         const queue = manager.GetQueue(DefaultObjectName);
@@ -62,7 +35,7 @@ describe("Watcher", () => {
 
     // On 'change' event, Watcher updates the file in the Manager
     it("should update the file in the Manager when a 'change' event occurs", async () => {
-        const { manager, watcher } = Init();
+        const { manager, watcher } = await Init();
         // Trigger 'change' event
         watcher["OnChange"](DefaultObjectName);
         const queue = manager.GetQueue(DefaultObjectName);
@@ -75,8 +48,8 @@ describe("Watcher", () => {
     });
 
     // On 'unlink' event, Watcher deletes the file from the Manager
-    it("should delete the file from the Manager when an 'unlink' event occurs", () => {
-        const { manager, watcher } = Init();
+    it("should delete the file from the Manager when an 'unlink' event occurs", async () => {
+        const { manager, watcher } = await Init();
         // Trigger 'unlink' event
         watcher["OnUnlink"](DefaultObjectName);
         // Assert that DeleteFile method of Manager is called with the correct arguments
@@ -86,8 +59,8 @@ describe("Watcher", () => {
     });
 
     // Manager.AddObjectsListener() throws an error
-    it("should log an error when Manager.AddObjectsListener() throws an error", () => {
-        const { watcher } = Init({
+    it("should log an error when Manager.AddObjectsListener() throws an error", async () => {
+        const { watcher } = await Init({
             Read: true,
             Write: false,
         });
@@ -104,7 +77,12 @@ describe("Watcher", () => {
     describe("StopWatch and ResumeWatch", () => {
         // StopWatch stops watching rootPath and ResumeWatch resumes watching rootPath
         it("should stop watching rootPath when StopWatch is called and resume watching rootPath when ResumeWatch is called", async () => {
-            const { manager, watcher } = Init();
+            const { manager, watcher } = await Init(
+                testsCommon.AllPermissions,
+                {
+                    ignoreInitial: true,
+                }
+            );
             const newFileName = utils.GUID();
             const objectName = `/${newFileName}`;
             const newFilePath = path.join(rootPath, newFileName);
@@ -137,7 +115,6 @@ describe("Watcher", () => {
 
                 // Try to copy and check that UploadFile was called
                 copyFileSync(__filename, newFilePath);
-                await new Promise(resolve => setTimeout(resolve, 100));
                 const queue = manager.GetQueue(objectName);
                 if (!queue)
                     throw new Error(`Queue for ${newFileName} not found`);
@@ -154,8 +131,8 @@ describe("Watcher", () => {
         });
 
         // When stopWatchCount is greater than 0, StopWatch increments stopWatchCount
-        it("should increment stopWatchCount when stopWatchCount is greater than 0", () => {
-            const { watcher } = Init();
+        it("should increment stopWatchCount when stopWatchCount is greater than 0", async () => {
+            const { watcher } = await Init();
             const unwatchMock = jest.spyOn(watcher["watcher"], "unwatch");
 
             watcher.StopWatch();
@@ -166,8 +143,8 @@ describe("Watcher", () => {
         });
 
         // When StopWatch is called with stopWatchCount greater than 0, StopWatch does not call unwatch method of FSWatcher
-        it("should not call unwatch method of FSWatcher when stopWatchCount is greater than 0", () => {
-            const { watcher } = Init();
+        it("should not call unwatch method of FSWatcher when stopWatchCount is greater than 0", async () => {
+            const { watcher } = await Init();
             const unwatchMock = jest.spyOn(watcher["watcher"], "unwatch");
 
             watcher.StopWatch();
@@ -177,8 +154,8 @@ describe("Watcher", () => {
         });
 
         // When StopWatch is called with stopWatchCount equal to 0, StopWatch increments stopWatchCount and does not call unwatch method of FSWatcher
-        it("should increment stopWatchCount and not call unwatch method of FSWatcher when stopWatchCount is equal to 0", () => {
-            const { watcher } = Init();
+        it("should increment stopWatchCount and not call unwatch method of FSWatcher when stopWatchCount is equal to 0", async () => {
+            const { watcher } = await Init();
             const unwatchMock = jest.spyOn(watcher["watcher"], "unwatch");
 
             watcher.StopWatch();
@@ -187,8 +164,8 @@ describe("Watcher", () => {
             expect(watcher["stopWatchCount"]).toBe(1);
         });
 
-        it("should decrement stopWatchCount and call add method of FSWatcher when stopWatchCount is equal to 1", () => {
-            const { watcher } = Init();
+        it("should decrement stopWatchCount and call add method of FSWatcher when stopWatchCount is equal to 1", async () => {
+            const { watcher } = await Init();
             const addSpy = jest.spyOn(watcher["watcher"], "add");
             watcher.StopWatch();
             watcher.ResumeWatch();
@@ -196,8 +173,8 @@ describe("Watcher", () => {
             expect(addSpy).toHaveBeenCalledWith(rootPath);
         });
 
-        it("should decrement stopWatchCount and not call add method of FSWatcher when stopWatchCount is greater than 1", () => {
-            const { watcher } = Init();
+        it("should decrement stopWatchCount and not call add method of FSWatcher when stopWatchCount is greater than 1", async () => {
+            const { watcher } = await Init();
             const addSpy = jest.spyOn(watcher["watcher"], "add");
             watcher.StopWatch();
             watcher.StopWatch();
@@ -206,15 +183,15 @@ describe("Watcher", () => {
             expect(addSpy).not.toHaveBeenCalled();
         });
 
-        it("should throw an error when stopWatchCount is equal to 0", () => {
-            const { watcher } = Init();
+        it("should throw an error when stopWatchCount is equal to 0", async () => {
+            const { watcher } = await Init();
             expect(() => {
                 watcher.ResumeWatch();
             }).toThrow("Watcher is not stopped");
         });
 
-        it("stopWatchCount should be equal to 0 and call add method of FSWatcher when StopWatch and ResumeWatch are called twice", () => {
-            const { watcher } = Init();
+        it("stopWatchCount should be equal to 0 and call add method of FSWatcher when StopWatch and ResumeWatch are called twice", async () => {
+            const { watcher } = await Init();
             const addSpy = jest.spyOn(watcher["watcher"], "add");
             watcher.StopWatch();
             watcher.StopWatch();
