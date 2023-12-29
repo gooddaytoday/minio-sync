@@ -1,24 +1,17 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 /* eslint-disable @typescript-eslint/unbound-method */
 import fsExtra from "fs-extra";
-import queue from "p-queue";
 import path from "path";
 import { IPermissions, IStorage, Manager, ObjectEvent } from "../src/manager";
 import * as utils from "../src/utils";
+import { testsCommon } from "./testsCommon";
 
 describe("Manager's unit tests", () => {
     afterEach(() => {
         jest.restoreAllMocks();
     });
 
-    const rootPath = __dirname;
-    function emptyPromiseMock(timeout: number = 100): jest.Mock {
-        return jest.fn(
-            () => new Promise(resolve => setTimeout(resolve, timeout))
-        );
-    }
-
-    const DefaultObjectName = "example.txt";
+    const { Init, rootPath, DefaultObjectName } = testsCommon;
     const DefaultFullPath = path.join(rootPath, DefaultObjectName);
     const MapWithObject = new Map([
         [
@@ -29,29 +22,16 @@ describe("Manager's unit tests", () => {
             },
         ],
     ]);
-    function CreateStorage(
-        objects: Map<string, utils.TObjItem> = new Map()
-    ): IStorage {
-        return {
-            AddObjectsListener: jest.fn(),
-            Objects: objects,
-            UploadFile: emptyPromiseMock(),
-            UpdateFile: emptyPromiseMock(),
-            DeleteFile: emptyPromiseMock(),
-            DownloadFile: emptyPromiseMock(),
-            RemoveBucket: emptyPromiseMock(),
-        };
-    }
+    const CreateStorage = testsCommon.CreateStorage;
     const AllPermissions: IPermissions = {
         Read: true,
         Write: true,
     };
     // UploadFile method adds task to queueMap
-    it("should add task to queueMap when UploadFile is called", () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+    it("should add task to queueMap when UploadFile is called", async () => {
+        const { storage, manager } = await Init();
         manager.UploadFile("objectName", "filePath");
+        await manager.AllQueues();
         expect(storage.UploadFile).toHaveBeenCalledWith(
             "objectName",
             "filePath"
@@ -59,11 +39,10 @@ describe("Manager's unit tests", () => {
     });
 
     // UpdateFile method adds task to queueMap
-    it("should add task to queueMap when UpdateFile is called", () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+    it("should add task to queueMap when UpdateFile is called", async () => {
+        const { storage, manager } = await Init();
         manager.UpdateFile("objectName", "filePath");
+        await manager.AllQueues();
         expect(storage.UpdateFile).toHaveBeenCalledWith(
             "objectName",
             "filePath"
@@ -71,11 +50,10 @@ describe("Manager's unit tests", () => {
     });
 
     // DeleteFile method adds task to queueMap
-    it("should add task to queueMap when DeleteFile is called", () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+    it("should add task to queueMap when DeleteFile is called", async () => {
+        const { storage, manager } = await Init();
         manager.DeleteFile("objectName");
+        await manager.AllQueues();
         expect(storage.DeleteFile).toHaveBeenCalledWith("objectName");
     });
 
@@ -146,19 +124,13 @@ describe("Manager's unit tests", () => {
     //    calcEtagMock.mockRestore();
     //});
 
-    function GlobalQueue(manager: Manager): queue {
-        return manager["queueing"]["globalQueue"];
-    }
-
-    function QueueMap(manager: Manager): Map<string, queue> {
-        return manager["queueing"]["queueMap"];
-    }
-
     // GlobalQueue runs exclusive after all in queueMap
     it("should run global task after all object tasks are completed", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+        const manager = new Manager(rootPath, CreateStorage(), AllPermissions);
+        const stopWatchMock = jest.fn();
+        manager.OnStopWatch(stopWatchMock);
+        const resumeWatchMock = jest.fn();
+        manager.OnResumeWatch(resumeWatchMock);
 
         // Add tasks to object queues
         manager.UploadFile("objectName1", "filePath1");
@@ -168,47 +140,53 @@ describe("Manager's unit tests", () => {
         manager.Sync();
 
         // Ensure global task is added to global queue
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(1);
+        expect(manager.GlobalQueue.size).toBe(0);
+        expect(manager.GlobalQueue.pending).toBe(1);
 
         // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
+        expect(manager.QueueMap.size).toBe(2);
 
         // Wait for all tasks to complete
-        await GlobalQueue(manager).onIdle();
+        await manager.GlobalQueue.onIdle();
+
+        expect(stopWatchMock).toHaveBeenCalled();
+        expect(resumeWatchMock).toHaveBeenCalled();
 
         // Ensure global task is completed after all object tasks
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(0);
+        expect(manager.GlobalQueue.size).toBe(0);
+        expect(manager.GlobalQueue.pending).toBe(0);
     });
 
     // QueueMap runs exclusive for each objectName
     it("should run tasks in object queue exclusively for each objectName", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+        const { manager } = await Init();
 
         // Add tasks to object queues
         manager.UploadFile("objectName1", "filePath1");
         manager.UploadFile("objectName2", "filePath2");
 
         // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
+        expect(manager.QueueMap.size).toBe(2);
 
         // Wait for all tasks to complete
-        await GlobalQueue(manager).onIdle();
+        await manager.GlobalQueue.onIdle();
+
+        expect(manager.QueueMap.size).toBe(2);
+        expect(manager.GlobalQueue.size).toBe(0);
 
         // Ensure object tasks are completed
-        const all = Array.from(QueueMap(manager).values()).map(q => q.onIdle());
+        const all = Array.from(manager.QueueMap.values()).map(q => q.onIdle());
         await Promise.all(all);
-        expect(QueueMap(manager).size).toBe(0);
+        expect(manager.QueueMap.size).toBe(0);
     });
 
     // GlobalQueue runs tasks in parallel
     it("should run global tasks in parallel", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+        const manager = new Manager(rootPath, CreateStorage(), AllPermissions);
+        const stopWatchMock = jest.fn();
+        manager.OnStopWatch(stopWatchMock);
+        const resumeWatchMock = jest.fn();
+        manager.OnResumeWatch(resumeWatchMock);
 
         // Add tasks to object queues
         manager.UploadFile("objectName1", "filePath1");
@@ -218,19 +196,23 @@ describe("Manager's unit tests", () => {
         manager.Sync();
 
         // Ensure global task is added to global queue
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(1);
+        expect(manager.GlobalQueue.size).toBe(0);
+        expect(manager.GlobalQueue.pending).toBe(1);
 
         // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
+        expect(manager.QueueMap.size).toBe(2);
 
         // Wait for all tasks to complete
-        await GlobalQueue(manager).onIdle();
+        await manager.GlobalQueue.onIdle();
 
-        expect(QueueMap(manager).size).toBe(0);
+        expect(stopWatchMock).toHaveBeenCalled();
+        expect(resumeWatchMock).toHaveBeenCalled();
+
+        // Ensure object tasks are completed
+        expect(manager.QueueMap.size).toBe(0);
 
         // Ensure global task is completed after all object tasks
-        expect(GlobalQueue(manager).size).toBe(0);
+        expect(manager.GlobalQueue.size).toBe(0);
     });
 
     it("should delete a file when it exists locally", async () => {
@@ -252,9 +234,7 @@ describe("Manager's unit tests", () => {
     });
 
     it("should download a file when it is not exists in local storage's objects", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
+        const { storage, manager } = await Init();
         const mockDownloadFile = jest
             .spyOn(storage, "DownloadFile")
             .mockResolvedValue();

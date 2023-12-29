@@ -8,15 +8,20 @@ type TAnymatchFn = (testString: string) => boolean;
 type TAnymatchPattern = string | RegExp | TAnymatchFn;
 const DefaultIgnored: TAnymatchPattern[] = ["node_modules/**"];
 
+const PadEnd = 20;
+
 export class Watcher {
     private watcher: chokidar.FSWatcher;
     private rootPath: string;
     private manager: Manager;
+    private stopWatchCount = 0;
     private logChanges: boolean = false;
 
     constructor(rootPath: string, manager: Manager, opts?: IWatchOptions) {
         this.rootPath = rootPath;
         this.manager = manager;
+        manager.OnStopWatch(() => this.StopWatch());
+        manager.OnResumeWatch(() => this.ResumeWatch());
         if (typeof opts == "undefined") {
             opts = {};
         }
@@ -35,7 +40,11 @@ export class Watcher {
                 stabilityThreshold: 5000,
             };
         }
-        opts.ignoreInitial = false; // Should be false in current implementation
+        if (process.env.NODE_ENV !== "test") {
+            opts.ignoreInitial = false; // Should be false in current implementation
+        } else if (typeof opts.ignoreInitial == "undefined") {
+            opts.ignoreInitial = false;
+        }
         this.watcher = chokidar.watch(rootPath, opts);
 
         this.watcher
@@ -82,7 +91,7 @@ export class Watcher {
     }
 
     private Log(fullpath: string, msg: string): void {
-        if (this.logChanges) Log(msg.padEnd(20), this.RelPath(fullpath));
+        if (this.logChanges) Log(msg.padEnd(PadEnd), this.RelPath(fullpath));
     }
 
     private RelPath(fullpath: string): string {
@@ -91,6 +100,24 @@ export class Watcher {
 
     public get Watcher(): chokidar.FSWatcher {
         return this.watcher;
+    }
+
+    public StopWatch(): void {
+        if (this.stopWatchCount == 0) {
+            this.watcher.unwatch(this.rootPath);
+        }
+        this.stopWatchCount++;
+    }
+
+    public ResumeWatch(): void {
+        if (this.stopWatchCount > 0) {
+            this.stopWatchCount--;
+            if (this.stopWatchCount == 0) {
+                this.watcher.add(this.rootPath);
+            }
+        } else {
+            throw new Error("Watcher is not stopped");
+        }
     }
 
     public async Close(): Promise<void> {
