@@ -12,8 +12,8 @@ jobs:
         ports:
           - 9000:9000
         env:
-          MINIO_ACCESS_KEY: nPRQd3IyCfMBV8HUjmyy
-          MINIO_SECRET_KEY: dYcdcLpIzgGSwL23m86hA304PtctxNPpXmgZkTAa
+          MINIO_ACCESS_KEY: T77RlV64b2pQpK71UPuA
+          MINIO_SECRET_KEY: atvLX0bUmtEJEEFjIh45RVpJFa45ODfBvJd3GFqS
 
     strategy:
       matrix:
