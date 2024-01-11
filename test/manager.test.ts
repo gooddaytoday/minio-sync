@@ -11,7 +11,8 @@ describe("Manager's unit tests", () => {
         jest.restoreAllMocks();
     });
 
-    const { Init, rootPath, DefaultObjectName } = testsCommon;
+    const rootPath = __dirname;
+    const { Init, DefaultObjectName } = testsCommon;
     const DefaultFullPath = path.join(rootPath, DefaultObjectName);
     const MapWithObject = new Map([
         [
@@ -29,7 +30,7 @@ describe("Manager's unit tests", () => {
     };
     // UploadFile method adds task to queueMap
     it("should add task to queueMap when UploadFile is called", async () => {
-        const { storage, manager } = await Init();
+        const { storage, manager } = await Init(rootPath);
         manager.UploadFile("objectName", "filePath");
         await manager.AllQueues();
         expect(storage.UploadFile).toHaveBeenCalledWith(
@@ -40,7 +41,7 @@ describe("Manager's unit tests", () => {
 
     // UpdateFile method adds task to queueMap
     it("should add task to queueMap when UpdateFile is called", async () => {
-        const { storage, manager } = await Init();
+        const { storage, manager } = await Init(rootPath);
         manager.UpdateFile("objectName", "filePath");
         await manager.AllQueues();
         expect(storage.UpdateFile).toHaveBeenCalledWith(
@@ -51,7 +52,7 @@ describe("Manager's unit tests", () => {
 
     // DeleteFile method adds task to queueMap
     it("should add task to queueMap when DeleteFile is called", async () => {
-        const { storage, manager } = await Init();
+        const { storage, manager } = await Init(rootPath);
         manager.DeleteFile("objectName");
         await manager.AllQueues();
         expect(storage.DeleteFile).toHaveBeenCalledWith("objectName");
@@ -159,7 +160,7 @@ describe("Manager's unit tests", () => {
 
     // QueueMap runs exclusive for each objectName
     it("should run tasks in object queue exclusively for each objectName", async () => {
-        const { manager } = await Init();
+        const { manager } = await Init(rootPath);
 
         // Add tasks to object queues
         manager.UploadFile("objectName1", "filePath1");
@@ -234,7 +235,7 @@ describe("Manager's unit tests", () => {
     });
 
     it("should download a file when it is not exists in local storage's objects", async () => {
-        const { storage, manager } = await Init();
+        const { storage, manager } = await Init(rootPath);
         const mockDownloadFile = jest
             .spyOn(storage, "DownloadFile")
             .mockResolvedValue();

@@ -9,7 +9,7 @@ function emptyPromiseMock(timeout: number = 100): jest.Mock {
 }
 
 export module testsCommon {
-    export const rootPath = __dirname;
+    export const DefaultRootPath = __dirname;
     export const DefaultObjectName = "example.txt";
     export const AllPermissions: IPermissions = {
         Read: true,
@@ -23,6 +23,7 @@ export module testsCommon {
     }
 
     export async function Init(
+        rootPath: string = DefaultRootPath,
         permissions: IPermissions = AllPermissions,
         watchOptions?: IWatchOptions
     ): Promise<IInit> {
