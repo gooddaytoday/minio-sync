@@ -104,9 +104,6 @@ describe("MinIO", () => {
             await minioInstance.UpdateFile(objectName, otherFilePath);
 
             expect(putObjectSpy).toHaveBeenCalledWith(objectName, filePath);
-            expect(logSpy).toHaveBeenCalledWith(
-                `File updated successfully in ${minioInstance.Bucket}/${objectName}`
-            );
         });
 
         it("should handle updating a file that does not exist", async () => {

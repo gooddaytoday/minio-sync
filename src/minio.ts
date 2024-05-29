@@ -23,7 +23,20 @@ interface IMinIONotificationEvent {
     };
 }
 
-const ToManagerObjEvent = {
+function IsNotificationEvent(obj: any): obj is IMinIONotificationEvent {
+    /* eslint-disable */
+    return !!(
+        obj &&
+        obj.eventName &&
+        obj.s3 &&
+        obj.s3.object &&
+        obj.s3.object.key
+
+    );
+    /* eslint-enable */
+}
+
+const ToManagerObjEvent: Record<string, ObjectEvent> = {
     [minio.ObjectCreatedPut]: ObjectEvent.Create,
     [minio.ObjectCreatedCompleteMultipartUpload]: ObjectEvent.Create,
     [minio.ObjectCreatedPost]: ObjectEvent.Create,
@@ -73,23 +86,25 @@ export default class MinIO {
         }
         // Listen for new objects
         if (this.listener)
-            this.listener.on(
-                "notification",
-                (event: IMinIONotificationEvent) => {
-                    if (this.objectsListener) {
-                        const mappedEvent = ToManagerObjEvent[event.eventName];
-                        this.objectsListener(
-                            mappedEvent,
-                            event.s3.object.key
-                        ).catch(e => {
-                            console.error("Error in objectsListener", e);
-                            throw e;
-                        });
-                    } else {
-                        throw new Error("Not set objectsListener");
+            this.listener.on("notification", (...args) => {
+                for (const event of args) {
+                    if (IsNotificationEvent(event)) {
+                        if (this.objectsListener) {
+                            const mappedEvent =
+                                ToManagerObjEvent[event.eventName];
+                            this.objectsListener(
+                                mappedEvent,
+                                event.s3.object.key
+                            ).catch(e => {
+                                console.error("Error in objectsListener", e);
+                                throw e;
+                            });
+                        } else {
+                            throw new Error("Not set objectsListener");
+                        }
                     }
                 }
-            );
+            });
     }
 
     public AddObjectsListener(cb: TObjectsListener): void {
@@ -114,11 +129,7 @@ export default class MinIO {
     ): Promise<void> {
         try {
             objectName = ProcessObjectName(objectName);
-            const res = await this.PutObject(objectName, filePath);
-            if (res)
-                Log(
-                    `File uploaded successfully to ${this.bucket}/${objectName}`
-                );
+            await this.PutObject(objectName, filePath);
         } catch (error) {
             console.error("Error uploading file:", error);
             throw error;
@@ -128,7 +139,7 @@ export default class MinIO {
     private async PutObject(
         objectName: string,
         filePath: string
-    ): Promise<minio.UploadedObjectInfo | undefined> {
+    ): Promise<void> {
         const [stat, etag] = await Promise.all([
             fs.stat(filePath),
             CalcEtag(filePath),
@@ -163,11 +174,7 @@ export default class MinIO {
             if (!this.objects.has(objectName)) {
                 throw new Error(`UpdateFile: File ${objectName} not found`);
             }
-            const res = await this.PutObject(objectName, filePath);
-            if (res)
-                Log(
-                    `File updated successfully in ${this.bucket}/${objectName}`
-                );
+            await this.PutObject(objectName, filePath);
         } catch (error) {
             Log("Error updating file:", error);
             throw error;
