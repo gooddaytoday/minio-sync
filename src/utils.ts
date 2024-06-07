@@ -41,6 +41,12 @@ export function GUID(): string {
     );
 }
 
+const IgnoredPathSubStrs = [".part.minio"];
+
+export function IsIgnoredPath(filePath: string): boolean {
+    return IgnoredPathSubStrs.some(subStr => filePath.includes(subStr));
+}
+
 export type TObjItem = {
     size: number;
     etag: string | null;

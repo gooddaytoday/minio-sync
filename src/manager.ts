@@ -1,7 +1,7 @@
 import { exists, unlink } from "fs-extra";
 import * as path from "path";
 import Queueing from "./queueing";
-import { IsFileEqual, Log, TObjItem } from "./utils";
+import { IsFileEqual, IsIgnoredPath, Log, TObjItem } from "./utils";
 
 export const enum ObjectEvent {
     Create,
@@ -58,6 +58,7 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`UploadFile ${filePath}: Write permission denied`);
         } else {
+            if (IsIgnoredPath(filePath)) return;
             this.queueing.AddToQueue(objectName, () =>
                 this.storage.UploadFile(objectName, filePath)
             );
@@ -68,6 +69,7 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`UpdateFile ${filePath}: Write permission denied`);
         } else {
+            if (IsIgnoredPath(filePath)) return;
             this.queueing.AddToQueue(objectName, () =>
                 this.storage.UpdateFile(objectName, filePath)
             );
@@ -78,6 +80,7 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`DeleteFile ${objectName}: Write permission denied`);
         } else {
+            if (IsIgnoredPath(objectName)) return;
             this.queueing.AddToQueue(objectName, () =>
                 this.storage.DeleteFile(objectName)
             );
@@ -120,6 +123,7 @@ export class Manager implements IManager {
         const fullPath = path.join(this.rootPath, objectName);
         switch (event) {
             case ObjectEvent.Create:
+                if (IsIgnoredPath(fullPath)) return;
                 return new Promise((resolve, reject) => {
                     this.queueing.AddToQueue(objectName, async () => {
                         try {
@@ -139,6 +143,7 @@ export class Manager implements IManager {
                     });
                 });
             case ObjectEvent.Delete:
+                if (IsIgnoredPath(fullPath)) return;
                 try {
                     if (
                         this.storage.Objects.has(objectName) &&
@@ -161,7 +166,10 @@ export class Manager implements IManager {
         const downloads: Promise<void>[] = [];
         for (const [obj, objData] of objects) {
             const fullpath = path.join(this.rootPath, obj);
-            if (!(await IsFileEqual(fullpath, objData))) {
+            if (
+                !IsIgnoredPath(fullpath) &&
+                !(await IsFileEqual(fullpath, objData))
+            ) {
                 downloads.push(this.storage.DownloadFile(obj, fullpath));
             }
         }
