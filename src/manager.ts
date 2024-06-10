@@ -17,6 +17,8 @@ export interface IStorage {
     AddObjectsListener(cb: TObjectsListener): void;
     /** Object name => object data */
     Objects: Map<string, TObjItem>;
+    HasObject(objectName: string): boolean;
+    GetObject(objectName: string): TObjItem | undefined;
     UploadFile(objectName: string, filePath: string): Promise<void>;
     UpdateFile(objectName: string, filePath: string): Promise<void>;
     DeleteFile(objectName: string): Promise<void>;
@@ -127,7 +129,7 @@ export class Manager implements IManager {
                 return new Promise((resolve, reject) => {
                     this.queueing.AddToQueue(objectName, async () => {
                         try {
-                            const obj = this.storage.Objects.get(objectName);
+                            const obj = this.storage.GetObject(objectName);
                             if (!obj || !(await IsFileEqual(fullPath, obj))) {
                                 await this.storage.DownloadFile(
                                     objectName,
@@ -146,7 +148,7 @@ export class Manager implements IManager {
                 if (IsIgnoredPath(fullPath)) return;
                 try {
                     if (
-                        this.storage.Objects.has(objectName) &&
+                        this.storage.HasObject(objectName) &&
                         (await exists(fullPath))
                     ) {
                         await unlink(fullPath);

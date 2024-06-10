@@ -123,6 +123,14 @@ export default class MinIO {
         return this.objects;
     }
 
+    public HasObject(objectName: string): boolean {
+        return this.objects.has(ProcessObjectName(objectName));
+    }
+
+    public GetObject(objectName: string): TObjItem | undefined {
+        return this.objects.get(ProcessObjectName(objectName));
+    }
+
     public async UploadFile(
         objectName: string,
         filePath: string
@@ -250,5 +258,7 @@ export default class MinIO {
 const win = os.platform() === "win32";
 
 export function ProcessObjectName(objectName: string): string {
-    return win ? objectName.replace(/\\/g, "/") : objectName; // Deduplicate \\ in objectName in case of Windows and replace \ with /
+    let result = win ? objectName.replace(/\\/g, "/") : objectName; // Deduplicate \\ in objectName in case of Windows and replace \ with /
+    if (result.at(0) == "/") result = result.slice(1); // Remove leading / to make it a valid MinIO object name
+    return result;
 }
