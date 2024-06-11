@@ -195,10 +195,17 @@ describe("MinIO", () => {
             expect(result).toBe(processed);
         });
 
-        it("should replace a single backslash at the beginning of the string with a forward slash", () => {
+        it("should remove a single backslash at the beginning of the string", () => {
             const objectName = "\\example";
             const result = ProcessObjectName(objectName);
-            const processed = windows ? "/example" : "\\example";
+            const processed = "example";
+            expect(result).toBe(processed);
+        });
+
+        it("should remove single slash at the beginning of the string", () => {
+            const objectName = "/example";
+            const result = ProcessObjectName(objectName);
+            const processed = "example";
             expect(result).toBe(processed);
         });
     });
