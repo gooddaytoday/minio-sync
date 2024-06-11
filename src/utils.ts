@@ -105,7 +105,10 @@ export async function CalcEtag(filePath: string): Promise<string> {
         }
     }
     DebugAssert(errors.length > 0, "Cannot be empty errors list");
-    throw new AggregateError(errors, "Errors while calculating md5");
+    throw new AggregateError(
+        errors,
+        `Errors while calculating md5 of ${filePath}`
+    );
 }
 
 function DoCalcEtag(filePath: string): Promise<string> {
@@ -137,7 +140,7 @@ function DoCalcEtag(filePath: string): Promise<string> {
         });
 
         stream.on("error", error => {
-            Log("Error while calculating md5", error);
+            Log(`Error while calculating md5 of ${filePath}`, error);
             reject(error);
         });
     });
