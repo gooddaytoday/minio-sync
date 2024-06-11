@@ -43,16 +43,20 @@ export class Manager implements IManager {
     private storage: IStorage;
     private permissions: IPermissions;
     private queueing = new Queueing();
+    /** Execute upload/download in parallel for separate files or in one global queue */
+    private parallel: boolean;
     private onSyncEndCb: (() => void) | undefined;
 
     constructor(
         rootPath: string,
         storage: IStorage,
-        permissions: IPermissions
+        permissions: IPermissions,
+        parallel: boolean = true
     ) {
         this.rootPath = rootPath;
         this.storage = storage;
         this.permissions = permissions;
+        this.parallel = parallel;
         void this.storage.AddObjectsListener(this.OnObjectEvent.bind(this));
     }
 
@@ -61,9 +65,12 @@ export class Manager implements IManager {
             Log(`UploadFile ${filePath}: Write permission denied`);
         } else {
             if (IsIgnoredPath(filePath)) return;
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.UploadFile(objectName, filePath)
-            );
+            const cb = () => this.storage.UploadFile(objectName, filePath);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -72,9 +79,12 @@ export class Manager implements IManager {
             Log(`UpdateFile ${filePath}: Write permission denied`);
         } else {
             if (IsIgnoredPath(filePath)) return;
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.UpdateFile(objectName, filePath)
-            );
+            const cb = () => this.storage.UpdateFile(objectName, filePath);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -83,9 +93,12 @@ export class Manager implements IManager {
             Log(`DeleteFile ${objectName}: Write permission denied`);
         } else {
             if (IsIgnoredPath(objectName)) return;
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.DeleteFile(objectName)
-            );
+            const cb = () => this.storage.DeleteFile(objectName);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -127,7 +140,7 @@ export class Manager implements IManager {
             case ObjectEvent.Create:
                 if (IsIgnoredPath(fullPath)) return;
                 return new Promise((resolve, reject) => {
-                    this.queueing.AddToQueue(objectName, async () => {
+                    const cb = async () => {
                         try {
                             const obj = this.storage.GetObject(objectName);
                             if (!obj || !(await IsFileEqual(fullPath, obj))) {
@@ -142,7 +155,12 @@ export class Manager implements IManager {
                             reject(e);
                             throw e;
                         }
-                    });
+                    };
+                    if (this.parallel) {
+                        this.queueing.AddToQueue(objectName, cb);
+                    } else {
+                        this.queueing.AddToGlobalQueue(cb);
+                    }
                 });
             case ObjectEvent.Delete:
                 if (IsIgnoredPath(fullPath)) return;

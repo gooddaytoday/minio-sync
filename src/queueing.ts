@@ -29,7 +29,7 @@ export default class Queue {
             if (this.globalQueue.size === 0 && this.globalQueue.pending === 0) {
                 await task();
             } else {
-                await this.globalQueue.add(() => task());
+                await this.globalQueue.add(task);
             }
         };
 

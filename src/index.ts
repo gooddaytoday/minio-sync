@@ -7,6 +7,8 @@ interface ISyncConfig {
     Permissions: IPermissions;
     MinIO: IMinIOConfig;
     WatchOptions?: IWatchOptions;
+    /** Execute upload/download in parallel for separate files or in one global queue. Default: true */
+    Parallel?: boolean;
 }
 
 export default async function Sync(
@@ -19,10 +21,15 @@ export default async function Sync(
         console.error("Error while initializing minio", e);
         throw e;
     });
-    const manager = new Manager(rootPath, minIO, {
-        Read: config.Permissions.Read,
-        Write: config.Permissions.Write,
-    });
+    const manager = new Manager(
+        rootPath,
+        minIO,
+        {
+            Read: config.Permissions.Read,
+            Write: config.Permissions.Write,
+        },
+        config.Parallel
+    );
     const watcher = new Watcher(rootPath, manager, config.WatchOptions);
     return watcher;
 }
