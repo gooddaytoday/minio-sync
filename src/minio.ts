@@ -7,6 +7,8 @@ import { CalcEtag, Log, TObjItem } from "./utils";
 export interface IMinIOConfig {
     Bucket: string;
     ListenUpdates: boolean;
+    /** Max file size in bytes */
+    MaxFileSize?: number;
     EndPoint: string;
     Port: number;
     UseSSL: boolean;
@@ -49,6 +51,8 @@ export default class MinIO {
     private client: minio.Client;
     private bucket: string;
     private objects = new Map<string, TObjItem>();
+    /** max file size in bytes */
+    private maxFileSize: number | undefined;
     private listener: minio.NotificationPoller | undefined;
     private objectsListener: TObjectsListener | undefined;
 
@@ -61,6 +65,7 @@ export default class MinIO {
             accessKey: config.AccessKey,
             secretKey: config.SecretKey,
         });
+        this.maxFileSize = config.MaxFileSize;
         if (config.ListenUpdates) {
             this.listener = this.client.listenBucketNotification(
                 this.Bucket,
@@ -148,10 +153,21 @@ export default class MinIO {
         objectName: string,
         filePath: string
     ): Promise<void> {
-        const [stat, etag] = await Promise.all([
-            fs.stat(filePath),
+        let stat: fs.Stats;
+        const statPromise = fs.stat(filePath);
+        if (this.maxFileSize != undefined) {
+            stat = await statPromise;
+            if (stat.size > this.maxFileSize) {
+                Log(`Skip big file ${objectName}: ${stat.size} bytes`);
+                return;
+            }
+        }
+
+        const [statVal, etag] = await Promise.all([
+            statPromise,
             CalcEtag(filePath),
         ]);
+        stat = statVal;
 
         if (this.objects.has(objectName)) {
             const obj = this.objects.get(objectName)!;
