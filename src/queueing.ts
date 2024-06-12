@@ -1,4 +1,5 @@
 import queue from "p-queue";
+import { Log } from "./utils";
 
 export default class Queue {
     private globalQueue: queue;
@@ -11,10 +12,20 @@ export default class Queue {
     }
 
     public AddToGlobalQueue(task: () => Promise<void>): void {
-        this.globalQueue.add(task).catch(e => {
-            console.error("Error in global queue", e);
-            throw e;
-        });
+        this.globalQueue
+            .add(task)
+            .catch(e => {
+                console.error("Error in global queue", e);
+                throw e;
+            })
+            .finally(() => {
+                Log(
+                    "Global queue size:",
+                    this.globalQueue.size,
+                    " pending:",
+                    this.globalQueue.pending
+                );
+            });
     }
 
     /** Runs the given task in a named queue. If the global queue isn't empty, the task will be added to the global queue instead. */
