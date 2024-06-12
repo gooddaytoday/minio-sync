@@ -35,6 +35,12 @@ describe("Manager's unit tests", () => {
         return {
             AddObjectsListener: jest.fn(),
             Objects: objects,
+            GetObject: function (objectName: string) {
+                return this.Objects.get(objectName);
+            },
+            HasObject: function (objectName: string) {
+                return this.Objects.has(objectName);
+            },
             UploadFile: emptyPromiseMock(),
             UpdateFile: emptyPromiseMock(),
             DeleteFile: emptyPromiseMock(),
@@ -46,8 +52,8 @@ describe("Manager's unit tests", () => {
         Read: true,
         Write: true,
     };
-    // UploadFile method adds task to queueMap
-    it("should add task to queueMap when UploadFile is called", () => {
+    // UploadFile method adds task to NamedQueues
+    it("should add task to NamedQueues when UploadFile is called", () => {
         const storage: IStorage = CreateStorage();
 
         const manager = new Manager(rootPath, storage, AllPermissions);
@@ -58,8 +64,8 @@ describe("Manager's unit tests", () => {
         );
     });
 
-    // UpdateFile method adds task to queueMap
-    it("should add task to queueMap when UpdateFile is called", () => {
+    // UpdateFile method adds task to NamedQueues
+    it("should add task to NamedQueues when UpdateFile is called", () => {
         const storage: IStorage = CreateStorage();
 
         const manager = new Manager(rootPath, storage, AllPermissions);
@@ -70,8 +76,8 @@ describe("Manager's unit tests", () => {
         );
     });
 
-    // DeleteFile method adds task to queueMap
-    it("should add task to queueMap when DeleteFile is called", () => {
+    // DeleteFile method adds task to NamedQueues
+    it("should add task to NamedQueues when DeleteFile is called", () => {
         const storage: IStorage = CreateStorage();
 
         const manager = new Manager(rootPath, storage, AllPermissions);
@@ -99,6 +105,8 @@ describe("Manager's unit tests", () => {
         const storage: IStorage = {
             AddObjectsListener: jest.fn(),
             Objects: new Map([["objectName", { size: 0, etag: null }]]),
+            GetObject: jest.fn(),
+            HasObject: jest.fn(),
             UploadFile: jest.fn(),
             UpdateFile: jest.fn(),
             DeleteFile: jest.fn(),
@@ -150,39 +158,11 @@ describe("Manager's unit tests", () => {
         return manager["queueing"]["globalQueue"];
     }
 
-    function QueueMap(manager: Manager): Map<string, queue> {
-        return manager["queueing"]["queueMap"];
+    function NamedQueues(manager: Manager): Map<string, queue> {
+        return manager["queueing"]["namedQueues"];
     }
 
-    // GlobalQueue runs exclusive after all in queueMap
-    it("should run global task after all object tasks are completed", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
-
-        // Add tasks to object queues
-        manager.UploadFile("objectName1", "filePath1");
-        manager.UploadFile("objectName2", "filePath2");
-
-        // Add global task
-        manager.Sync();
-
-        // Ensure global task is added to global queue
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(1);
-
-        // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
-
-        // Wait for all tasks to complete
-        await GlobalQueue(manager).onIdle();
-
-        // Ensure global task is completed after all object tasks
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(0);
-    });
-
-    // QueueMap runs exclusive for each objectName
+    // NamedQueues runs exclusive for each objectName
     it("should run tasks in object queue exclusively for each objectName", async () => {
         const storage: IStorage = CreateStorage();
 
@@ -193,44 +173,17 @@ describe("Manager's unit tests", () => {
         manager.UploadFile("objectName2", "filePath2");
 
         // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
+        expect(NamedQueues(manager).size).toBe(2);
 
         // Wait for all tasks to complete
         await GlobalQueue(manager).onIdle();
 
         // Ensure object tasks are completed
-        const all = Array.from(QueueMap(manager).values()).map(q => q.onIdle());
+        const all = Array.from(NamedQueues(manager).values()).map(q =>
+            q.onIdle()
+        );
         await Promise.all(all);
-        expect(QueueMap(manager).size).toBe(0);
-    });
-
-    // GlobalQueue runs tasks in parallel
-    it("should run global tasks in parallel", async () => {
-        const storage: IStorage = CreateStorage();
-
-        const manager = new Manager(rootPath, storage, AllPermissions);
-
-        // Add tasks to object queues
-        manager.UploadFile("objectName1", "filePath1");
-        manager.UploadFile("objectName2", "filePath2");
-
-        // Add global task
-        manager.Sync();
-
-        // Ensure global task is added to global queue
-        expect(GlobalQueue(manager).size).toBe(0);
-        expect(GlobalQueue(manager).pending).toBe(1);
-
-        // Ensure object tasks are added to object queues
-        expect(QueueMap(manager).size).toBe(2);
-
-        // Wait for all tasks to complete
-        await GlobalQueue(manager).onIdle();
-
-        expect(QueueMap(manager).size).toBe(0);
-
-        // Ensure global task is completed after all object tasks
-        expect(GlobalQueue(manager).size).toBe(0);
+        expect(NamedQueues(manager).size).toBe(0);
     });
 
     it("should delete a file when it exists locally", async () => {

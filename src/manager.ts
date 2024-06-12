@@ -1,7 +1,7 @@
 import { exists, unlink } from "fs-extra";
 import * as path from "path";
 import Queueing from "./queueing";
-import { IsFileEqual, Log, TObjItem } from "./utils";
+import { IsFileEqual, IsIgnoredPath, Log, TObjItem } from "./utils";
 
 export const enum ObjectEvent {
     Create,
@@ -17,6 +17,8 @@ export interface IStorage {
     AddObjectsListener(cb: TObjectsListener): void;
     /** Object name => object data */
     Objects: Map<string, TObjItem>;
+    HasObject(objectName: string): boolean;
+    GetObject(objectName: string): TObjItem | undefined;
     UploadFile(objectName: string, filePath: string): Promise<void>;
     UpdateFile(objectName: string, filePath: string): Promise<void>;
     DeleteFile(objectName: string): Promise<void>;
@@ -41,16 +43,20 @@ export class Manager implements IManager {
     private storage: IStorage;
     private permissions: IPermissions;
     private queueing = new Queueing();
+    /** Execute upload/download in parallel for separate files or in one global queue */
+    private parallel: boolean;
     private onSyncEndCb: (() => void) | undefined;
 
     constructor(
         rootPath: string,
         storage: IStorage,
-        permissions: IPermissions
+        permissions: IPermissions,
+        parallel: boolean = true
     ) {
         this.rootPath = rootPath;
         this.storage = storage;
         this.permissions = permissions;
+        this.parallel = parallel;
         void this.storage.AddObjectsListener(this.OnObjectEvent.bind(this));
     }
 
@@ -58,9 +64,13 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`UploadFile ${filePath}: Write permission denied`);
         } else {
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.UploadFile(objectName, filePath)
-            );
+            if (IsIgnoredPath(filePath)) return;
+            const cb = () => this.storage.UploadFile(objectName, filePath);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -68,9 +78,13 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`UpdateFile ${filePath}: Write permission denied`);
         } else {
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.UpdateFile(objectName, filePath)
-            );
+            if (IsIgnoredPath(filePath)) return;
+            const cb = () => this.storage.UpdateFile(objectName, filePath);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -78,9 +92,13 @@ export class Manager implements IManager {
         if (!this.permissions.Write) {
             Log(`DeleteFile ${objectName}: Write permission denied`);
         } else {
-            this.queueing.AddToQueue(objectName, () =>
-                this.storage.DeleteFile(objectName)
-            );
+            if (IsIgnoredPath(objectName)) return;
+            const cb = () => this.storage.DeleteFile(objectName);
+            if (this.parallel) {
+                this.queueing.AddToQueue(objectName, cb);
+            } else {
+                this.queueing.AddToGlobalQueue(cb);
+            }
         }
     }
 
@@ -120,10 +138,11 @@ export class Manager implements IManager {
         const fullPath = path.join(this.rootPath, objectName);
         switch (event) {
             case ObjectEvent.Create:
+                if (IsIgnoredPath(fullPath)) return;
                 return new Promise((resolve, reject) => {
-                    this.queueing.AddToQueue(objectName, async () => {
+                    const cb = async () => {
                         try {
-                            const obj = this.storage.Objects.get(objectName);
+                            const obj = this.storage.GetObject(objectName);
                             if (!obj || !(await IsFileEqual(fullPath, obj))) {
                                 await this.storage.DownloadFile(
                                     objectName,
@@ -136,12 +155,18 @@ export class Manager implements IManager {
                             reject(e);
                             throw e;
                         }
-                    });
+                    };
+                    if (this.parallel) {
+                        this.queueing.AddToQueue(objectName, cb);
+                    } else {
+                        this.queueing.AddToGlobalQueue(cb);
+                    }
                 });
             case ObjectEvent.Delete:
+                if (IsIgnoredPath(fullPath)) return;
                 try {
                     if (
-                        this.storage.Objects.has(objectName) &&
+                        this.storage.HasObject(objectName) &&
                         (await exists(fullPath))
                     ) {
                         await unlink(fullPath);
@@ -161,7 +186,10 @@ export class Manager implements IManager {
         const downloads: Promise<void>[] = [];
         for (const [obj, objData] of objects) {
             const fullpath = path.join(this.rootPath, obj);
-            if (!(await IsFileEqual(fullpath, objData))) {
+            if (
+                !IsIgnoredPath(fullpath) &&
+                !(await IsFileEqual(fullpath, objData))
+            ) {
                 downloads.push(this.storage.DownloadFile(obj, fullpath));
             }
         }

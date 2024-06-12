@@ -8,21 +8,21 @@ class Queueing {
     private queueing = new QueueingClass();
     constructor() {}
 
-    public get queueMapActiveCount(): number {
-        return this.queueing["queueMapActiveCount"];
+    public get namedQueueActiveCount(): number {
+        return this.queueing["namedQueuesActiveCount"];
     }
 
     public get globalQueue(): queue {
         return this.queueing["globalQueue"];
     }
 
-    public get queueMap(): Map<string, queue> {
-        return this.queueing["queueMap"];
+    public get namedQueues(): Map<string, queue> {
+        return this.queueing["namedQueues"];
     }
 
-    public get queueMapIdle(): Promise<void[]> {
+    public get namedQueuesIdle(): Promise<void[]> {
         return Promise.all(
-            Array.from(this.queueMap.values()).map(q => q.onIdle())
+            Array.from(this.namedQueues.values()).map(q => q.onIdle())
         );
     }
 
@@ -75,7 +75,10 @@ describe("Queueing", () => {
         const queueing = new Queueing();
         const cb = jest.fn().mockResolvedValue({});
 
-        queueing.queueMap.set(DefaultObjectName, new queue({ concurrency: 1 }));
+        queueing.namedQueues.set(
+            DefaultObjectName,
+            new queue({ concurrency: 1 })
+        );
 
         expect(() => {
             queueing.AddToQueue(DefaultObjectName, cb);
@@ -83,8 +86,8 @@ describe("Queueing", () => {
         expect(cb).toHaveBeenCalled();
     });
 
-    // Adds cb to global queue if queueMap is empty
-    it("should add cb to global queue if queueMap is empty", () => {
+    // Adds cb to global queue if namedQueues is empty
+    it("should add cb to global queue if namedQueues is empty", () => {
         const queueing = new Queueing();
         const cb = jest.fn().mockResolvedValue({});
 
@@ -110,26 +113,28 @@ describe("Queueing", () => {
         queueing.AddToQueue(DefaultObjectName, cb);
 
         // Check that the object queue is created and has the task
-        expect(queueing.queueMap.has(DefaultObjectName)).toBe(true);
-        expect(queueing.queueMap.get(DefaultObjectName)).toBeInstanceOf(queue);
-        expect(queueing.queueMap.get(DefaultObjectName)?.size).toBe(0);
-        expect(queueing.queueMap.get(DefaultObjectName)?.pending).toBe(1);
+        expect(queueing.namedQueues.has(DefaultObjectName)).toBe(true);
+        expect(queueing.namedQueues.get(DefaultObjectName)).toBeInstanceOf(
+            queue
+        );
+        expect(queueing.namedQueues.get(DefaultObjectName)?.size).toBe(0);
+        expect(queueing.namedQueues.get(DefaultObjectName)?.pending).toBe(1);
 
         // Wait for the global queue to become idle
         await queueing.globalQueue.onIdle();
 
         // Wait for the task of objectName to be executed
-        await queueing.queueMap.get(DefaultObjectName)?.onIdle();
+        await queueing.namedQueues.get(DefaultObjectName)?.onIdle();
 
         // Check that the task in the object queue has been executed
         // by checking that the object queue is empty
-        expect(queueing.queueMap.has(DefaultObjectName)).toBe(false);
+        expect(queueing.namedQueues.has(DefaultObjectName)).toBe(false);
 
         // Check the sequence of tasks
         expect(sequenceResult).toEqual(["global", "objectQueue"]);
     });
 
-    // If globalQueue is not empty, AddToQueue runs cb after all in queueMap and globalQueue
+    // If globalQueue is not empty, AddToQueue runs cb after all in namedQueues and globalQueue
     it("should run object's cb after globalQueue if globalQueue is not empty", async () => {
         const queueing = new Queueing();
         const objectName = "testObject";
@@ -142,74 +147,19 @@ describe("Queueing", () => {
             .fn()
             .mockImplementation(() => sequenceResult.push("global"));
 
-        const queueMapGetSpy = jest.spyOn(queueing["queueMap"], "get");
-        const globalQueueSizeSpy = jest.spyOn(
-            queueing["globalQueue"],
-            "size",
-            "get"
-        );
-        const globalQueuePendingSpy = jest.spyOn(
-            queueing["globalQueue"],
-            "pending",
-            "get"
-        );
-        const globalQueueOnIdleSpy = jest.spyOn(
-            queueing["globalQueue"],
-            "onIdle"
-        );
+        const namedQueuesGetSpy = jest.spyOn(queueing["namedQueues"], "get");
 
         queueing.AddToGlobalQueue(() => Task(globalCbTask));
         queueing.AddToQueue(objectName, () => Task(objectTask));
 
-        expect(queueMapGetSpy).toHaveBeenCalledWith(objectName);
-        expect(globalQueueSizeSpy).toHaveBeenCalled();
-        expect(globalQueuePendingSpy).toHaveBeenCalled();
-        expect(globalQueueOnIdleSpy).toHaveBeenCalled();
+        expect(namedQueuesGetSpy).toHaveBeenCalledWith(objectName);
 
-        await queueing["globalQueue"].onIdle();
-        expect(globalCbTask).toHaveBeenCalled();
-        expect(sequenceResult).toEqual(["global"]);
-
-        await queueing["queueMap"].get(objectName)!.onIdle();
+        await queueing["namedQueues"].get(objectName)!.onIdle();
         expect(objectTask).toHaveBeenCalled();
         expect(sequenceResult).toEqual(["global", "objectQueue"]);
     });
 
-    // Adds cb to global queue after all in queueMap if queueMap is not empty
-    it("should rename queue for objectName when there is a queue for objectName and globalQueue is not empty", async () => {
-        const queueing = new Queueing();
-        type TResults = "global" | "firstTask" | "lastTask";
-        const sequenceResult: TResults[] = [];
-        // Add a task to queueMap
-        const firstObjTask = jest.fn(() => sequenceResult.push("firstTask"));
-        queueing.AddToQueue(DefaultObjectName, () => Task(firstObjTask));
-
-        // Add a task to global queue
-        const globalTask = jest.fn(() => sequenceResult.push("global"));
-        queueing.AddToGlobalQueue(() => Task(globalTask));
-
-        // Add second task to queueMap
-        const lastObjTask = jest.fn(() => sequenceResult.push("lastTask"));
-        queueing.AddToQueue(DefaultObjectName, () => Task(lastObjTask));
-
-        // Assert
-        expect(queueing.globalQueue.size).toBe(0);
-        expect(queueing.globalQueue.pending).toBe(1);
-
-        // Wait for the tasks to be executed
-        await queueing.globalQueue.onIdle();
-        expect(sequenceResult).toEqual(["firstTask", "global"]);
-        expect(queueing.globalQueue.size).toBe(0);
-        expect(queueing.globalQueue.pending).toBe(0);
-        expect(queueing.queueMap.size).toBe(2);
-
-        // wait for all object' tasks in queueMap to be executed
-        await queueing.queueMapIdle;
-        expect(queueing.queueMap.size).toBe(0);
-        expect(sequenceResult).toEqual(["firstTask", "global", "lastTask"]);
-    });
-
-    it("should decrement queueMapActiveCount when a queue becomes empty", async () => {
+    it("should decrement namedQueuesActiveCount when a queue becomes empty", async () => {
         const queueing = new Queueing();
         const cb = jest.fn(() => Task());
         const objQueue = new queue({ concurrency: 1 });
@@ -221,7 +171,47 @@ describe("Queueing", () => {
 
         expect(objQueueOnIdleSpy).toHaveBeenCalled();
         expect(cb).toHaveBeenCalled();
-        await queueing.queueMapIdle;
-        expect(queueing.queueMapActiveCount).toBe(0);
+        await queueing.namedQueuesIdle;
+        expect(queueing.namedQueueActiveCount).toBe(0);
+    });
+
+    // named queue should be deleted when it becomes empty
+    it("should delete named queue when it becomes empty", async () => {
+        const queueing = new Queueing();
+        queueing.AddToQueue(
+            DefaultObjectName,
+            jest.fn(() => Task())
+        );
+        await queueing.namedQueues.get(DefaultObjectName)!.onIdle();
+        expect(queueing.namedQueues.has(DefaultObjectName)).toBe(false);
+    });
+
+    it("should handle adding tasks to multiple named queues in AddToQueue", async () => {
+        const queueing = new Queueing();
+        const task1 = jest.fn().mockResolvedValue(undefined);
+        const task2 = jest.fn().mockResolvedValue(undefined);
+
+        queueing.AddToQueue("object1", task1);
+        queueing.AddToQueue("object2", task2);
+
+        await queueing.namedQueues.get("object1")!.onIdle();
+        await queueing.namedQueues.get("object2")!.onIdle();
+
+        expect(task1).toHaveBeenCalled();
+        expect(task2).toHaveBeenCalled();
+    });
+
+    it("should handle rapid addition of tasks to the same named queue", async () => {
+        const queueing = new Queueing();
+        const task1 = jest.fn().mockResolvedValue(undefined);
+        const task2 = jest.fn().mockResolvedValue(undefined);
+
+        queueing.AddToQueue(DefaultObjectName, task1);
+        queueing.AddToQueue(DefaultObjectName, task2);
+
+        await queueing.namedQueues.get(DefaultObjectName)!.onIdle();
+
+        expect(task1).toHaveBeenCalled();
+        expect(task2).toHaveBeenCalled();
     });
 });
