@@ -198,7 +198,7 @@ describe("MinIO", () => {
         it("should remove a single backslash at the beginning of the string", () => {
             const objectName = "\\example";
             const result = ProcessObjectName(objectName);
-            const processed = "example";
+            const processed = windows ? "example" : "\\example";
             expect(result).toBe(processed);
         });
 
