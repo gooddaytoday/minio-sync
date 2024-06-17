@@ -190,9 +190,13 @@ export class Manager implements IManager {
                 !IsIgnoredPath(fullpath) &&
                 !(await IsFileEqual(fullpath, objData))
             ) {
-                downloads.push(this.storage.DownloadFile(obj, fullpath));
+                if (this.parallel) {
+                    downloads.push(this.storage.DownloadFile(obj, fullpath));
+                } else {
+                    await this.storage.DownloadFile(obj, fullpath);
+                }
             }
         }
-        await Promise.all(downloads);
+        if (this.parallel) await Promise.all(downloads);
     }
 }
