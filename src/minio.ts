@@ -33,7 +33,6 @@ function IsNotificationEvent(obj: any): obj is IMinIONotificationEvent {
         obj.s3 &&
         obj.s3.object &&
         obj.s3.object.key
-
     );
     /* eslint-enable */
 }
@@ -252,7 +251,7 @@ export default class MinIO {
 
     private async GetObjects(): Promise<Map<string, minio.BucketItem>> {
         const result = new Map<string, minio.BucketItem>();
-        const list = this.client.listObjects(this.bucket, undefined, true);
+        const list = this.client.listObjectsV2(this.bucket, undefined, true);
         list.on("data", item => {
             if (item.name) {
                 result.set(item.name, item);
