@@ -1,6 +1,6 @@
 {
   "name": "minio-sync",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "NPM package for folders synchronization via MinIO",
   "main": "./lib/index.js",
   "types": "./types/index.d.ts",
