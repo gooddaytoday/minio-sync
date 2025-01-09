@@ -224,11 +224,17 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
-            objectName = ProcessObjectName(objectName);
-            await this.client.fGetObject(this.bucket, objectName, filePath);
-            Log(
-                `File downloaded successfully from ${this.bucket}/${objectName}`
-            );
+            const invalidChar = /.*[\/\\].*[\:\<\>\*\?\|]+.*$/.test(objectName);
+            const isWin = os.platform() == "win32";
+            if (invalidChar && isWin) {
+                Log(`File name contains invalid characters: ${objectName}`);
+            } else {
+                objectName = ProcessObjectName(objectName);
+                await this.client.fGetObject(this.bucket, objectName, filePath);
+                Log(
+                    `File downloaded successfully from ${this.bucket}/${objectName}`
+                );
+            }
         } catch (error) {
             console.error("Error downloading file:", error);
             throw error;
