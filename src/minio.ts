@@ -5,6 +5,8 @@ import path from "path";
 import { ObjectEvent, TObjectsListener } from "./manager";
 import { CalcEtag, Log, TObjItem } from "./utils";
 
+const win = os.platform() === "win32";
+
 export interface IMinIOConfig {
     Bucket: string;
     ListenUpdates: boolean;
@@ -227,7 +229,7 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
-            if (os.platform() == "win32") {
+            if (win) {
                 const baseName = path.basename(objectName);
                 const dirPath = path.dirname(filePath);
                 const dirs: string[] = dirPath.split(path.sep);
@@ -292,8 +294,6 @@ export default class MinIO {
         return result;
     }
 }
-
-const win = os.platform() === "win32";
 
 export function ProcessObjectName(objectName: string): string {
     let result = win ? objectName.replace(/\\/g, "/") : objectName; // Deduplicate \\ in objectName in case of Windows and replace \ with /
