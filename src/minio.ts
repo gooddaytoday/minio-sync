@@ -1,6 +1,7 @@
 import * as fs from "fs-extra";
 import * as minio from "minio";
 import * as os from "os";
+import path from "path";
 import { ObjectEvent, TObjectsListener } from "./manager";
 import { CalcEtag, Log, TObjItem } from "./utils";
 
@@ -45,6 +46,8 @@ const ToManagerObjEvent: Record<string, ObjectEvent> = {
     [minio.ObjectRemovedDelete]: ObjectEvent.Delete,
     [minio.ObjectRemovedDeleteMarkerCreated]: ObjectEvent.Delete,
 };
+
+const WinInvalidChars = /[<>:"\/\\|?*]/;
 
 export default class MinIO {
     private client: minio.Client;
@@ -224,17 +227,31 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
-            const invalidChar = /.*[\/\\].*[\:\<\>\*\?\|]+.*$/.test(objectName);
-            const isWin = os.platform() == "win32";
-            if (invalidChar && isWin) {
-                Log(`File name contains invalid characters: ${objectName}`);
-            } else {
-                objectName = ProcessObjectName(objectName);
-                await this.client.fGetObject(this.bucket, objectName, filePath);
-                Log(
-                    `File downloaded successfully from ${this.bucket}/${objectName}`
-                );
+            if (os.platform() == "win32") {
+                const baseName = path.basename(objectName);
+                const dirPath = path.dirname(filePath);
+                const dirs: string[] = dirPath.split(path.sep);
+                for (const dir of dirs) {
+                    if (WinInvalidChars.test(dir)) {
+                        Log(
+                            `Directory name of ${objectName} contains invalid characters: ${dir}`
+                        );
+                        return;
+                    }
+                }
+                if (WinInvalidChars.test(baseName)) {
+                    Log(
+                        `File name of ${objectName} contains invalid characters: ${baseName}`
+                    );
+                    return;
+                }
             }
+
+            objectName = ProcessObjectName(objectName);
+            await this.client.fGetObject(this.bucket, objectName, filePath);
+            Log(
+                `File downloaded successfully from ${this.bucket}/${objectName}`
+            );
         } catch (error) {
             console.error("Error downloading file:", error);
             throw error;
