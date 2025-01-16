@@ -109,14 +109,14 @@ export class Manager implements IManager {
                 if (this.permissions.Read) {
                     await this.DownloadObjects();
                 }
-                if (this.onSyncEndCb) {
-                    this.onSyncEndCb();
-                }
             } catch (e) {
                 console.error("Error while syncing", e);
                 throw e;
             } finally {
                 Log(" --- SYNC ENDED, Listening for changes --- \n\n");
+                if (this.onSyncEndCb) {
+                    this.onSyncEndCb();
+                }
             }
         });
     }
