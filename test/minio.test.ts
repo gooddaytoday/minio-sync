@@ -12,6 +12,13 @@ let minioInstance: MinIO;
 let logSpy: jest.SpyInstance;
 const otherFilePath = path.join(__dirname, "testsCommon.ts");
 
+async function minioInstanceWin(): Promise<MinIO> {
+    const minioInstance = new MinIO(minioConf);
+    minioInstance["win"] = true;
+    await minioInstance.Init();
+    return minioInstance;
+}
+
 describe("MinIO", () => {
     beforeAll(async () => {
         logSpy = jest.spyOn(utils, "Log");
@@ -207,6 +214,63 @@ describe("MinIO", () => {
             const result = ProcessObjectName(objectName);
             const processed = "example";
             expect(result).toBe(processed);
+        });
+    });
+
+    describe("MinIO DownloadFile", () => {
+        it("should log an error when directory name contains invalid characters on Windows", async () => {
+            const minioInstance = await minioInstanceWin();
+
+            const objectName = GUID();
+            const wrongDir = "invalid:dir";
+            const invalidDirPath = path.join(__dirname, wrongDir, "file.txt");
+            await minioInstance.DownloadFile(objectName, invalidDirPath);
+
+            expect(logSpy).toHaveBeenCalledWith(
+                `Directory name of ${objectName} contains invalid characters: ${wrongDir}`
+            );
+        });
+
+        it("should log an error when file name contains invalid characters on Windows", async () => {
+            const minioInstance = await minioInstanceWin();
+            const objectName = GUID();
+            const wrongFileName = "invalid_file?.txt";
+            const invalidFilePath = path.join(__dirname, wrongFileName);
+
+            await minioInstance.DownloadFile(objectName, invalidFilePath);
+
+            expect(logSpy).toHaveBeenCalledWith(
+                `File name of ${objectName} contains invalid characters: ${wrongFileName}`
+            );
+        });
+
+        function fGetObjectMock(minioInstance: MinIO): jest.SpyInstance {
+            return jest
+                .spyOn(minioInstance.Client, "fGetObject")
+                .mockImplementation(async () => {
+                    // Simulate successful download
+                    return Promise.resolve();
+                });
+        }
+
+        it("should download file successfully when no invalid characters are present", async () => {
+            const objectName = GUID();
+            const downloadFilePath = path.join(__dirname, "newFile.txt");
+
+            // Mock the fGetObject method
+            const getObjectMock = fGetObjectMock(minioInstance);
+
+            await minioInstance.DownloadFile(objectName, downloadFilePath);
+
+            // Check that fGetObject was called with the correct parameters
+            expect(getObjectMock).toHaveBeenCalledWith(
+                minioConf.Bucket,
+                objectName,
+                downloadFilePath
+            );
+
+            // Restore the original method
+            getObjectMock.mockRestore();
         });
     });
 
