@@ -1,12 +1,9 @@
 import * as fs from "fs-extra";
 import * as minio from "minio";
-import * as os from "os";
+import os from "os";
 import path from "path";
 import { ObjectEvent, TObjectsListener } from "./manager";
 import { CalcEtag, Log, TObjItem } from "./utils";
-
-const win = os.platform() === "win32";
-
 export interface IMinIOConfig {
     Bucket: string;
     ListenUpdates: boolean;
@@ -52,6 +49,7 @@ const ToManagerObjEvent: Record<string, ObjectEvent> = {
 const WinInvalidChars = /[<>:"\/\\|?*]/;
 
 export default class MinIO {
+    private win: boolean = os.platform() === "win32";
     private client: minio.Client;
     private bucket: string;
     private objects = new Map<string, TObjItem>();
@@ -229,7 +227,7 @@ export default class MinIO {
         filePath: string
     ): Promise<void> {
         try {
-            if (win) {
+            if (this.win) {
                 const baseName = path.basename(filePath);
                 const dirPath = path.dirname(filePath);
                 const dirs: string[] = dirPath.split(path.sep);
@@ -294,6 +292,8 @@ export default class MinIO {
         return result;
     }
 }
+
+const win = os.platform() === "win32";
 
 export function ProcessObjectName(objectName: string): string {
     let result = win ? objectName.replace(/\\/g, "/") : objectName; // Deduplicate \\ in objectName in case of Windows and replace \ with /
