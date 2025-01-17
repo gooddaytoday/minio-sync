@@ -230,7 +230,7 @@ export default class MinIO {
     ): Promise<void> {
         try {
             if (win) {
-                const baseName = path.basename(objectName);
+                const baseName = path.basename(filePath);
                 const dirPath = path.dirname(filePath);
                 const dirs: string[] = dirPath.split(path.sep);
                 for (const dir of dirs) {
