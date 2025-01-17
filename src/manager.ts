@@ -103,22 +103,20 @@ export class Manager implements IManager {
     }
 
     public Sync(): void {
-        if (!this.permissions.Read) {
-            Log("Sync: Read permission denied");
-            return;
-        }
         this.queueing.AddToGlobalQueue(async () => {
             try {
                 Log(" --- SYNC ---");
-                await this.DownloadObjects();
-                if (this.onSyncEndCb) {
-                    this.onSyncEndCb();
+                if (this.permissions.Read) {
+                    await this.DownloadObjects();
                 }
             } catch (e) {
                 console.error("Error while syncing", e);
                 throw e;
             } finally {
                 Log(" --- SYNC ENDED, Listening for changes --- \n\n");
+                if (this.onSyncEndCb) {
+                    this.onSyncEndCb();
+                }
             }
         });
     }

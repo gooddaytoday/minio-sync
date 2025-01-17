@@ -267,4 +267,19 @@ describe("Manager's unit tests", () => {
         mockIsFileEqual.mockRestore();
         mockDownloadFile.mockRestore();
     });
+
+    it("should call onSyncEndCb when it is set and Sync is called", async () => {
+        const storage: IStorage = CreateStorage();
+        const manager = new Manager(rootPath, storage, AllPermissions);
+
+        const onSyncEndCbMock = jest.fn();
+        manager.OnSyncEnd(onSyncEndCbMock);
+
+        manager.Sync();
+
+        // Ожидаем завершения всех задач в глобальной очереди
+        await GlobalQueue(manager).onIdle();
+
+        expect(onSyncEndCbMock).toHaveBeenCalled();
+    });
 });
