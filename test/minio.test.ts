@@ -8,9 +8,17 @@ import { testsCommon } from "./testsCommon";
 const GUID = utils.GUID;
 const windows = os.platform() === "win32";
 const minioConf = testsCommon.GenMinIOConfig();
+const minioConfWin = testsCommon.GenMinIOConfig();
 let minioInstance: MinIO;
 let logSpy: jest.SpyInstance;
 const otherFilePath = path.join(__dirname, "testsCommon.ts");
+
+async function minioInstanceWin(): Promise<MinIO> {
+    const minioInstance = new MinIO(minioConfWin);
+    minioInstance["win"] = true;
+    await minioInstance.Init();
+    return minioInstance;
+}
 
 describe("MinIO", () => {
     beforeAll(async () => {
@@ -207,6 +215,76 @@ describe("MinIO", () => {
             const result = ProcessObjectName(objectName);
             const processed = "example";
             expect(result).toBe(processed);
+        });
+    });
+
+    describe("MinIO DownloadFile", () => {
+        let minioWin: MinIO;
+        beforeAll(async () => {
+            minioWin = await minioInstanceWin();
+        });
+
+        it("should log an error when directory name contains invalid characters on Windows", async () => {
+            const objectName = GUID();
+            const wrongDir = "invalid:dir";
+            const invalidDirPath = path.join(__dirname, wrongDir, "file.txt");
+            await minioWin.DownloadFile(objectName, invalidDirPath);
+
+            expect(logSpy).toHaveBeenCalledWith(
+                `Directory name of ${objectName} contains invalid characters: ${wrongDir}`
+            );
+
+            expect(fs.existsSync(invalidDirPath)).toBeFalsy();
+            expect(fs.existsSync(path.join(__dirname, wrongDir))).toBeFalsy();
+        });
+
+        it("should log an error when file name contains invalid characters on Windows", async () => {
+            const objectName = GUID();
+            const wrongFileName = "invalid_file?.txt";
+            const invalidFilePath = path.join(__dirname, wrongFileName);
+
+            await minioWin.DownloadFile(objectName, invalidFilePath);
+
+            expect(logSpy).toHaveBeenCalledWith(
+                `File name of ${objectName} contains invalid characters: ${wrongFileName}`
+            );
+            expect(fs.existsSync(invalidFilePath)).toBeFalsy();
+            expect(
+                fs.existsSync(path.join(__dirname, wrongFileName))
+            ).toBeFalsy();
+        });
+
+        function fGetObjectMock(minioInstance: MinIO): jest.SpyInstance {
+            return jest
+                .spyOn(minioInstance.Client, "fGetObject")
+                .mockImplementation(async () => {
+                    // Simulate successful download
+                    return Promise.resolve();
+                });
+        }
+
+        it("should download file successfully when no invalid characters are present", async () => {
+            const objectName = GUID();
+            const downloadFilePath = path.join(__dirname, "newFile.txt");
+
+            // Mock the fGetObject method
+            const getObjectMock = fGetObjectMock(minioWin);
+
+            await minioWin.DownloadFile(objectName, downloadFilePath);
+
+            // Check that fGetObject was called with the correct parameters
+            expect(getObjectMock).toHaveBeenCalledWith(
+                minioConfWin.Bucket,
+                objectName,
+                downloadFilePath
+            );
+
+            // Restore the original method
+            getObjectMock.mockRestore();
+        });
+
+        afterAll(async () => {
+            await minioWin.RemoveBucket();
         });
     });
 
